@@ -2,8 +2,10 @@
  * PM2配置文件
  * 用于生产环境部署
  * 
+ * 注意：使用.cjs扩展名以支持ES模块项目
+ * 
  * 使用方法：
- * pm2 start ecosystem.config.js
+ * pm2 start ecosystem.config.cjs
  * pm2 save
  * pm2 startup
  */
