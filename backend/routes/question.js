@@ -1,0 +1,488 @@
+import express from 'express'
+import { authenticate, optionalAuth } from '../middleware/auth.js'
+import { guestQuestionLimit } from '../middleware/rateLimit.js'
+import { checkGuestAccess } from '../utils/guestAccess.js'
+import pool from '../config/database.js'
+
+const router = express.Router()
+
+// 查询试题
+router.get('/search', optionalAuth, async (req, res, next) => {
+  try {
+    const { grade_id, subject_id, knowledge_point_id, page = 1, page_size = 100 } = req.query
+    
+    if (!grade_id || !subject_id || !knowledge_point_id) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供完整的查询条件'
+      })
+    }
+    
+    let query = `
+      SELECT q.*, 
+             s.name as subject_name,
+             g.name as grade_name,
+             kp.name as knowledge_point_name,
+             dl.name as difficulty_name,
+             dl.level_value as difficulty_level
+      FROM questions q
+      LEFT JOIN subjects s ON q.subject_id = s.id
+      LEFT JOIN grades g ON q.grade_id = g.id
+      LEFT JOIN knowledge_points kp ON q.knowledge_point_id = kp.id
+      LEFT JOIN difficulty_levels dl ON q.difficulty_id = dl.id
+      WHERE q.grade_id = $1 
+        AND q.subject_id = $2 
+        AND q.knowledge_point_id = $3
+        AND q.status = '已发布'
+    `
+    
+    const params = [grade_id, subject_id, knowledge_point_id]
+    
+    // VIP用户：排除已下载的题目（如果是一键生成）
+    if (req.user && req.query.exclude_downloaded === 'true') {
+      query += ` AND q.id NOT IN (
+        SELECT question_id FROM user_downloaded_questions 
+        WHERE user_id = $${params.length + 1} AND knowledge_point_id = $${params.length + 2}
+      )`
+      params.push(req.user.id, knowledge_point_id)
+    }
+    
+    query += ' ORDER BY q.created_at DESC'
+    
+    // 获取总数
+    const countResult = await pool.query(
+      query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM'),
+      params
+    )
+    const total = parseInt(countResult.rows[0].total)
+    
+    // 获取分页数据
+    const offset = (parseInt(page) - 1) * parseInt(page_size)
+    query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    params.push(parseInt(page_size), offset)
+    
+    const result = await pool.query(query, params)
+    
+    res.json({
+      success: true,
+      questions: result.rows,
+      total,
+      page: parseInt(page),
+      page_size: parseInt(page_size)
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 获取试题详情
+router.get('/:id', optionalAuth, guestQuestionLimit, async (req, res, next) => {
+  try {
+    const questionId = req.params.id
+    const ip = req.ip || req.connection.remoteAddress
+    
+    // 未登录用户检查访问限制
+    if (!req.user) {
+      const accessCheck = await checkGuestAccess(ip, parseInt(questionId))
+      if (!accessCheck.allowed) {
+        return res.status(403).json({
+          success: false,
+          message: accessCheck.reason
+        })
+      }
+    }
+    
+    const result = await pool.query(
+      `SELECT q.*, 
+              s.name as subject_name, s.code as subject_code,
+              g.name as grade_name, g.code as grade_code,
+              kp.name as knowledge_point_name,
+              qt.name as question_type_name,
+              dl.name as difficulty_name,
+              dl.level_value as difficulty_level
+       FROM questions q
+       LEFT JOIN subjects s ON q.subject_id = s.id
+       LEFT JOIN grades g ON q.grade_id = g.id
+       LEFT JOIN knowledge_points kp ON q.knowledge_point_id = kp.id
+       LEFT JOIN question_types qt ON q.question_type_id = qt.id
+       LEFT JOIN difficulty_levels dl ON q.difficulty_id = dl.id
+       WHERE q.id = $1 AND q.status = '已发布'`,
+      [questionId]
+    )
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: '试题不存在'
+      })
+    }
+    
+    res.json({
+      success: true,
+      question: result.rows[0]
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 查看答案
+router.post('/:id/view-answer', authenticate, async (req, res, next) => {
+  try {
+    const questionId = req.params.id
+    const userId = req.user.id
+    
+    // 检查是否是VIP用户
+    const vipResult = await pool.query(
+      `SELECT vm.* FROM vip_memberships vm
+       INNER JOIN questions q ON q.grade_id = ANY(vm.grade_ids)
+       WHERE vm.user_id = $1 AND vm.status = 'active' 
+         AND vm.end_date >= CURRENT_DATE
+         AND q.id = $2`,
+      [userId, questionId]
+    )
+    
+    if (vipResult.rows.length > 0) {
+      // VIP用户直接返回答案
+      const questionResult = await pool.query(
+        'SELECT answer_image_url FROM questions WHERE id = $1',
+        [questionId]
+      )
+      
+      return res.json({
+        success: true,
+        need_payment: false,
+        answer_url: questionResult.rows[0]?.answer_image_url
+      })
+    }
+    
+    // 非VIP用户，检查是否已查看过答案
+    const viewResult = await pool.query(
+      'SELECT is_first_view FROM user_answer_views WHERE user_id = $1 AND question_id = $2',
+      [userId, questionId]
+    )
+    
+    let isFirstView = true
+    if (viewResult.rows.length > 0) {
+      isFirstView = viewResult.rows[0].is_first_view
+    }
+    
+    // 检查是否有未支付的订单
+    const orderResult = await pool.query(
+      `SELECT id, order_no, status FROM orders 
+       WHERE user_id = $1 AND question_id = $2 AND type = 'view_answer' 
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId, questionId]
+    )
+    
+    if (orderResult.rows.length > 0) {
+      const order = orderResult.rows[0]
+      if (order.status === 'paid') {
+        // 已支付，返回答案
+        const questionResult = await pool.query(
+          'SELECT answer_image_url FROM questions WHERE id = $1',
+          [questionId]
+        )
+        
+        return res.json({
+          success: true,
+          need_payment: false,
+          answer_url: questionResult.rows[0]?.answer_image_url
+        })
+      }
+    }
+    
+    // 需要创建支付订单
+    const amount = isFirstView ? 0.1 : 0.5
+    const orderNo = `ANSWER_${Date.now()}_${userId}_${questionId}`
+    
+    await pool.query(
+      `INSERT INTO orders (user_id, order_no, type, amount, question_id, status)
+       VALUES ($1, $2, 'view_answer', $3, $4, 'pending')`,
+      [userId, orderNo, amount, questionId]
+    )
+    
+    res.json({
+      success: true,
+      need_payment: true,
+      order_no: orderNo,
+      amount
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 一键生成试题组
+router.post('/generate-group', authenticate, async (req, res, next) => {
+  try {
+    const { grade_id, subject_id, knowledge_point_id } = req.body
+    const userId = req.user.id
+    
+    if (!grade_id || !subject_id || !knowledge_point_id) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供完整的查询条件'
+      })
+    }
+    
+    // 检查VIP权限
+    const vipResult = await pool.query(
+      `SELECT grade_ids FROM vip_memberships 
+       WHERE user_id = $1 AND status = 'active' AND end_date >= CURRENT_DATE`,
+      [userId]
+    )
+    
+    const vipGrades = vipResult.rows.length > 0 ? vipResult.rows[0].grade_ids : []
+    
+    // 获取已下载的题目（VIP用户）
+    let downloadedQuestions = []
+    if (vipGrades.includes(parseInt(grade_id))) {
+      const downloadedResult = await pool.query(
+        `SELECT question_id FROM user_downloaded_questions 
+         WHERE user_id = $1 AND knowledge_point_id = $2`,
+        [userId, knowledge_point_id]
+      )
+      downloadedQuestions = downloadedResult.rows.map(r => r.question_id)
+    }
+    
+    // 查询题目，排除已下载的
+    const excludeClause = downloadedQuestions.length > 0 
+      ? `AND q.id NOT IN (${downloadedQuestions.join(',')})`
+      : ''
+    
+    // 按难度分组查询
+    const easyResult = await pool.query(
+      `SELECT id FROM questions q
+       INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
+       WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
+         AND q.status = '已发布' AND dl.level_value = 1 ${excludeClause}
+       ORDER BY RANDOM() LIMIT 8`,
+      [grade_id, subject_id, knowledge_point_id]
+    )
+    
+    const mediumResult = await pool.query(
+      `SELECT id FROM questions q
+       INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
+       WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
+         AND q.status = '已发布' AND dl.level_value = 2 ${excludeClause}
+       ORDER BY RANDOM() LIMIT 5`,
+      [grade_id, subject_id, knowledge_point_id]
+    )
+    
+    const hardResult = await pool.query(
+      `SELECT id FROM questions q
+       INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
+       WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
+         AND q.status = '已发布' AND dl.level_value = 3 ${excludeClause}
+       ORDER BY RANDOM() LIMIT 2`,
+      [grade_id, subject_id, knowledge_point_id]
+    )
+    
+    const expertResult = await pool.query(
+      `SELECT id FROM questions q
+       INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
+       WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
+         AND q.status = '已发布' AND dl.level_value = 4 ${excludeClause}
+       ORDER BY RANDOM() LIMIT 1`,
+      [grade_id, subject_id, knowledge_point_id]
+    )
+    
+    let questionIds = [
+      ...easyResult.rows.map(r => r.id),
+      ...mediumResult.rows.map(r => r.id),
+      ...hardResult.rows.map(r => r.id)
+    ]
+    
+    // 如果简单题+中等题+困难题不足15道，尝试用极难题补充
+    if (questionIds.length < 15 && expertResult.rows.length > 0) {
+      questionIds.push(expertResult.rows[0].id)
+    }
+    
+    // 如果还是不足15道，只返回现有的
+    if (questionIds.length < 15) {
+      // 如果少于15道且是VIP用户，说明可能已全部下载
+      if (questionIds.length === 0 && downloadedQuestions.length > 0) {
+        return res.json({
+          success: true,
+          question_ids: [],
+          message: '该知识点下所有题目都已下载'
+        })
+      }
+    }
+    
+    res.json({
+      success: true,
+      question_ids: questionIds
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 下载试题组
+router.post('/download-group', authenticate, async (req, res, next) => {
+  try {
+    const { question_ids } = req.body
+    const userId = req.user.id
+    
+    if (!question_ids || !Array.isArray(question_ids) || question_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供题目ID列表'
+      })
+    }
+    
+    if (question_ids.length > 15) {
+      return res.status(400).json({
+        success: false,
+        message: '最多只能下载15道题'
+      })
+    }
+    
+    // 检查VIP权限
+    const vipResult = await pool.query(
+      `SELECT vm.* FROM vip_memberships vm
+       INNER JOIN questions q ON q.grade_id = ANY(vm.grade_ids)
+       WHERE vm.user_id = $1 AND vm.status = 'active' 
+         AND vm.end_date >= CURRENT_DATE
+         AND q.id = ANY($2::int[])
+       GROUP BY vm.id
+       HAVING COUNT(DISTINCT q.grade_id) = COUNT(DISTINCT q.id)`,
+      [userId, question_ids]
+    )
+    
+    const isVip = vipResult.rows.length > 0
+    
+    // 非VIP用户需要支付
+    if (!isVip) {
+      // 检查是否有未支付的订单
+      const orderResult = await pool.query(
+        `SELECT id, order_no, status FROM orders 
+         WHERE user_id = $1 AND type = 'download' 
+           AND question_ids = $2
+         ORDER BY created_at DESC LIMIT 1`,
+        [userId, question_ids]
+      )
+      
+      if (orderResult.rows.length === 0 || orderResult.rows[0].status !== 'paid') {
+      // 创建支付订单
+      const orderNo = `DOWNLOAD_${Date.now()}_${userId}`
+      await pool.query(
+        `INSERT INTO orders (user_id, order_no, type, amount, question_ids, status)
+         VALUES ($1, $2, 'download', 1.00, $3::int[], 'pending')`,
+        [userId, orderNo, question_ids]
+      )
+      
+      return res.status(200).json({
+        success: true,
+        need_payment: true,
+        order_no: orderNo,
+        amount: 1.00
+      })
+      }
+    }
+    
+    // VIP用户或已支付，生成PDF
+    const { generatePDF, generateAnswerPDF } = await import('../utils/pdfGenerator.js')
+    
+    // 生成试题组PDF
+    const questionPdfBuffer = await generatePDF(question_ids, userId, false)
+    
+    // VIP用户：记录已下载的题目并生成答案PDF
+    let answerPdfBuffer = null
+    if (isVip) {
+      // 获取知识点ID
+      const questionResult = await pool.query(
+        'SELECT DISTINCT knowledge_point_id FROM questions WHERE id = ANY($1::int[])',
+        [question_ids]
+      )
+      
+      const knowledgePointIds = questionResult.rows.map(r => r.knowledge_point_id).filter(Boolean)
+      
+      if (knowledgePointIds.length > 0) {
+        // 批量插入下载记录
+        for (const qid of question_ids) {
+          await pool.query(
+            `INSERT INTO user_downloaded_questions (user_id, question_id, knowledge_point_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (user_id, question_id) DO NOTHING`,
+            [userId, qid, knowledgePointIds[0]]
+          )
+        }
+      }
+      
+      // 生成答案PDF
+      answerPdfBuffer = await generateAnswerPDF(question_ids)
+    }
+    
+    // 返回ZIP文件包含两个PDF（简化版本：返回试题组PDF，答案PDF需要单独下载）
+    // 实际项目中可以使用archiver创建ZIP
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'attachment; filename="试题组.pdf"')
+    res.send(questionPdfBuffer)
+    
+    // TODO: 如果VIP用户需要同时下载答案，可以创建ZIP文件
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 获取已下载的题目
+router.get('/downloaded', authenticate, async (req, res, next) => {
+  try {
+    const { knowledge_point_id } = req.query
+    const userId = req.user.id
+    
+    if (!knowledge_point_id) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供知识点ID'
+      })
+    }
+    
+    const result = await pool.query(
+      `SELECT question_id FROM user_downloaded_questions 
+       WHERE user_id = $1 AND knowledge_point_id = $2`,
+      [userId, knowledge_point_id]
+    )
+    
+    res.json({
+      success: true,
+      question_ids: result.rows.map(r => r.question_id)
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 重置已下载题目标记
+router.post('/reset-downloaded', authenticate, async (req, res, next) => {
+  try {
+    const { knowledge_point_id } = req.body
+    const userId = req.user.id
+    
+    if (!knowledge_point_id) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供知识点ID'
+      })
+    }
+    
+    await pool.query(
+      `DELETE FROM user_downloaded_questions 
+       WHERE user_id = $1 AND knowledge_point_id = $2`,
+      [userId, knowledge_point_id]
+    )
+    
+    res.json({
+      success: true,
+      message: '已重置'
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+export default router
+
