@@ -276,10 +276,43 @@ export function verifyPaymentCallback(params) {
  * @returns {Promise<Object>}
  */
 export async function parseCallbackXml(xml) {
-  const result = await parseStringPromise(xml, {
-    explicitArray: false,
-    ignoreAttrs: true
-  })
-  return result.xml
+  try {
+    // 验证输入
+    if (!xml || typeof xml !== 'string') {
+      throw new Error('XML数据无效：不是字符串类型')
+    }
+    
+    // 清理XML数据
+    let cleanXml = xml.trim()
+    
+    // 移除BOM（如果存在）
+    if (cleanXml.charCodeAt(0) === 0xFEFF) {
+      cleanXml = cleanXml.slice(1)
+    }
+    
+    // 验证是否为有效的XML格式
+    if (!cleanXml.startsWith('<')) {
+      throw new Error(`XML数据格式错误：不以'<'开头，实际开头字符: ${cleanXml.substring(0, 10)}`)
+    }
+    
+    // 解析XML
+    const result = await parseStringPromise(cleanXml, {
+      explicitArray: false,
+      ignoreAttrs: true,
+      trim: true,
+      normalize: true
+    })
+    
+    if (!result || !result.xml) {
+      throw new Error('XML解析结果为空')
+    }
+    
+    return result.xml
+  } catch (error) {
+    console.error('解析XML失败:', error.message)
+    console.error('XML数据（前500字符）:', xml.substring(0, 500))
+    console.error('XML数据长度:', xml.length)
+    throw error
+  }
 }
 

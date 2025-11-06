@@ -12,8 +12,37 @@ const router = express.Router()
 // 必须在所有其他路由之前，因为使用了express.raw中间件
 router.post('/payment-callback', express.raw({ type: 'application/xml' }), async (req, res, next) => {
   try {
-    const xmlData = req.body.toString('utf8')
-    console.log('收到微信支付回调:', xmlData)
+    // 获取原始数据
+    let xmlData = req.body
+    
+    // 如果是Buffer，转换为字符串
+    if (Buffer.isBuffer(xmlData)) {
+      xmlData = xmlData.toString('utf8')
+    } else if (typeof xmlData === 'object') {
+      // 如果是对象，可能是JSON格式，记录日志但不处理
+      console.error('收到非XML格式的回调数据:', JSON.stringify(xmlData))
+      return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[数据格式错误]]></return_msg></xml>')
+    } else {
+      xmlData = String(xmlData)
+    }
+    
+    // 清理数据：移除BOM、前后空白字符
+    xmlData = xmlData.trim()
+    // 移除BOM（如果存在）
+    if (xmlData.charCodeAt(0) === 0xFEFF) {
+      xmlData = xmlData.slice(1)
+    }
+    
+    // 验证是否为有效的XML格式
+    if (!xmlData.startsWith('<') || !xmlData.includes('xml')) {
+      console.error('收到非XML格式的回调数据:', xmlData.substring(0, 200))
+      console.error('数据长度:', xmlData.length)
+      console.error('数据类型:', typeof xmlData)
+      return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[数据格式错误]]></return_msg></xml>')
+    }
+    
+    console.log('收到微信支付回调（原始数据）:', xmlData.substring(0, 500))
+    console.log('数据长度:', xmlData.length)
     
     // 解析XML数据
     const { parseCallbackXml, verifyPaymentCallback } = await import('../utils/wechatPayment.js')
@@ -142,7 +171,29 @@ router.post('/payment-callback', express.raw({ type: 'application/xml' }), async
     res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
   } catch (error) {
     console.error('处理微信支付回调失败:', error)
-    // 即使处理失败，也要返回SUCCESS，避免微信重复回调
+    console.error('错误堆栈:', error.stack)
+    
+    // 如果是XML解析错误，返回FAIL让微信重试
+    if (error.message && (error.message.includes('Non-whitespace') || error.message.includes('XML'))) {
+      console.error('XML解析错误，可能是数据格式问题')
+      // 记录原始请求信息
+      console.error('请求头 Content-Type:', req.headers['content-type'])
+      console.error('请求体类型:', typeof req.body)
+      if (req.body) {
+        if (Buffer.isBuffer(req.body)) {
+          console.error('请求体（Buffer）长度:', req.body.length)
+          console.error('请求体（Buffer）前100字节:', req.body.slice(0, 100).toString('utf8'))
+        } else {
+          console.error('请求体（字符串）长度:', String(req.body).length)
+          console.error('请求体（字符串）前200字符:', String(req.body).substring(0, 200))
+        }
+      }
+      
+      // 返回FAIL，让微信稍后重试
+      return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[XML解析失败]]></return_msg></xml>')
+    }
+    
+    // 其他错误，返回SUCCESS避免重复回调
     res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
   }
 })

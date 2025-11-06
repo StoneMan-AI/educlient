@@ -2,7 +2,7 @@
   <el-dialog
     v-model="dialogVisible"
     :title="paymentTitle"
-    width="500px"
+    width="700px"
     @close="handleClose"
   >
     <div class="payment-content">
@@ -11,30 +11,30 @@
         <p class="amount-value">¥{{ amount }}</p>
       </div>
       
-      <div v-if="qrCodeUrl" class="qr-code-section">
-        <p class="qr-tip">请使用微信扫描二维码支付</p>
-        <div class="qr-code">
-          <img :src="qrCodeUrl" alt="支付二维码" />
+      <div class="payment-main">
+        <div v-if="qrCodeUrl" class="qr-code-section">
+          <p class="qr-tip">请使用微信扫描二维码支付</p>
+          <div class="qr-code">
+            <img :src="qrCodeUrl" alt="支付二维码" />
+          </div>
+          <p class="qr-status">{{ paymentStatus }}</p>
         </div>
-        <p class="qr-status">{{ paymentStatus }}</p>
-      </div>
-      
-      <div v-else class="loading">
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>正在生成支付二维码...</span>
-      </div>
-      
-      <el-divider />
-      
-      <div class="vip-option">
-        <p>或升级为VIP，享受更多权益：</p>
-        <ul>
-          <li>无限查阅试题和答案</li>
-          <li>无限制下载试题和答案</li>
-          <li>记录已下载试题</li>
-          <li>标记重点题目</li>
-        </ul>
-        <el-button type="primary" @click="handleUpgradeVip">升级VIP</el-button>
+        
+        <div v-else class="loading">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>正在生成支付二维码...</span>
+        </div>
+        
+        <div class="vip-option">
+          <p>或升级为VIP，享受更多权益：</p>
+          <ul>
+            <li>无限查阅试题和答案</li>
+            <li>无限制下载试题和答案</li>
+            <li>记录已下载试题</li>
+            <li>标记重点题目</li>
+          </ul>
+          <el-button type="primary" @click="handleUpgradeVip">升级VIP</el-button>
+        </div>
       </div>
     </div>
     
@@ -202,31 +202,45 @@ onUnmounted(() => {
   color: #f56c6c;
 }
 
+.payment-main {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+  justify-content: center;
+  margin-top: 20px;
+}
+
 .qr-code-section {
-  margin: 30px 0;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .qr-tip {
   margin-bottom: 20px;
   color: #666;
+  font-size: 14px;
 }
 
 .qr-code {
   display: flex;
   justify-content: center;
-  margin: 20px 0;
+  margin: 0;
 }
 
 .qr-code img {
   width: 200px;
   height: 200px;
   border: 1px solid #ddd;
+  border-radius: 4px;
 }
 
 .qr-status {
   margin-top: 15px;
   color: #409eff;
   font-weight: bold;
+  font-size: 14px;
 }
 
 .loading {
@@ -234,34 +248,57 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  margin: 40px 0;
   color: #666;
+  flex: 0 0 auto;
 }
 
 .vip-option {
+  flex: 1;
   text-align: left;
   background: #f5f7fa;
   padding: 20px;
   border-radius: 4px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
 }
 
 .vip-option p {
   margin-bottom: 10px;
   font-weight: bold;
+  font-size: 14px;
+  color: #333;
 }
 
 .vip-option ul {
   margin: 15px 0;
   padding-left: 20px;
   color: #666;
+  font-size: 13px;
+  flex: 1;
 }
 
 .vip-option li {
   margin-bottom: 8px;
+  line-height: 1.6;
 }
 
 .vip-option .el-button {
-  margin-top: 15px;
+  margin-top: auto;
+  width: 100%;
+}
+
+/* 响应式设计：小屏幕时改为纵向布局 */
+@media (max-width: 768px) {
+  .payment-main {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .vip-option {
+    width: 100%;
+    max-width: 300px;
+  }
 }
 </style>
 
