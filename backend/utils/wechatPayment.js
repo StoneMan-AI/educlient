@@ -33,15 +33,26 @@ function generateNonceStr(length = 32) {
  * 生成签名
  */
 function generateSign(params) {
-  // 过滤空值并排序
+  // 过滤空值和sign字段，注意：值为0或false的字段需要保留
   const sortedParams = Object.keys(params)
-    .filter(key => params[key] && key !== 'sign')
+    .filter(key => {
+      // 保留sign字段之外的所有字段
+      if (key === 'sign') return false
+      // 保留非null和非undefined的值（包括0、false、空字符串）
+      const value = params[key]
+      return value !== null && value !== undefined && value !== ''
+    })
     .sort()
     .map(key => `${key}=${params[key]}`)
     .join('&')
   
   // 加上密钥
   const stringSignTemp = `${sortedParams}&key=${KEY}`
+  
+  // 调试日志（生产环境可移除）
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG_WECHAT === 'true') {
+    console.log('签名原始字符串:', stringSignTemp.replace(KEY, 'KEY_HIDDEN'))
+  }
   
   // MD5加密并转大写
   return crypto.createHash('md5').update(stringSignTemp, 'utf8').digest('hex').toUpperCase()
@@ -78,21 +89,48 @@ export async function createNativeOrder(params) {
     spbill_create_ip
   } = params
 
+  // 验证必要参数
+  if (!APPID || !MCHID || !KEY) {
+    throw new Error('微信支付配置不完整，请检查环境变量 WECHAT_APPID、WECHAT_MCHID、WECHAT_KEY')
+  }
+
+  // 验证参数
+  if (!out_trade_no || !total_fee || !body) {
+    throw new Error('缺少必要参数：out_trade_no、total_fee、body')
+  }
+
+  // 金额处理：确保是整数（分），如果传入的是元，需要乘以100
+  let totalFeeInCents = total_fee
+  if (typeof total_fee === 'number' && total_fee < 100) {
+    // 如果金额小于100，假设是元，转换为分
+    totalFeeInCents = Math.round(total_fee * 100)
+  } else {
+    totalFeeInCents = Math.round(total_fee)
+  }
+
   const requestParams = {
     appid: APPID,
     mch_id: MCHID,
     nonce_str: generateNonceStr(),
-    body: body,
-    out_trade_no: out_trade_no,
-    total_fee: Math.round(total_fee * 100), // 转换为分
-    spbill_create_ip: spbill_create_ip,
+    body: String(body).substring(0, 128), // 商品描述，最长128字符
+    out_trade_no: String(out_trade_no),
+    total_fee: totalFeeInCents, // 金额（分）
+    spbill_create_ip: spbill_create_ip || '127.0.0.1',
     notify_url: NOTIFY_URL,
-    trade_type: 'NATIVE', // Native支付类型
-    product_id: out_trade_no // 可选，商品ID
+    trade_type: 'NATIVE' // Native支付类型
   }
 
   // 生成签名
   requestParams.sign = generateSign(requestParams)
+
+  // 调试日志（生产环境可移除）
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG_WECHAT === 'true') {
+    console.log('微信支付请求参数:', {
+      ...requestParams,
+      sign: 'SIGN_HIDDEN',
+      key: 'KEY_HIDDEN'
+    })
+  }
 
   // 转换为XML
   const xml = objectToXml(requestParams)
@@ -122,10 +160,22 @@ export async function createNativeOrder(params) {
         prepay_id: result.xml.prepay_id
       }
     } else {
-      throw new Error(result.xml.err_code_des || result.xml.return_msg || '创建订单失败')
+      // 详细的错误信息
+      const errorMsg = result.xml.err_code_des || result.xml.err_code || result.xml.return_msg || '创建订单失败'
+      console.error('微信支付返回错误:', {
+        return_code: result.xml.return_code,
+        result_code: result.xml.result_code,
+        err_code: result.xml.err_code,
+        err_code_des: result.xml.err_code_des,
+        return_msg: result.xml.return_msg
+      })
+      throw new Error(errorMsg)
     }
   } catch (error) {
-    console.error('微信支付创建订单失败:', error)
+    console.error('微信支付创建订单失败:', error.message || error)
+    if (error.response) {
+      console.error('微信支付API响应:', error.response.data)
+    }
     throw error
   }
 }
