@@ -31,6 +31,11 @@ function generateNonceStr(length = 32) {
 
 /**
  * 生成签名
+ * 微信支付签名规则：
+ * 1. 参数名ASCII码从小到大排序（字典序）
+ * 2. 如果参数的值为空不参与签名
+ * 3. 参数名区分大小写
+ * 4. sign参数不参与签名
  */
 function generateSign(params) {
   // 过滤空值和sign字段，注意：值为0或false的字段需要保留
@@ -42,8 +47,12 @@ function generateSign(params) {
       const value = params[key]
       return value !== null && value !== undefined && value !== ''
     })
-    .sort()
-    .map(key => `${key}=${params[key]}`)
+    .sort() // 按ASCII码排序
+    .map(key => {
+      // 确保参数值转换为字符串
+      const value = String(params[key])
+      return `${key}=${value}`
+    })
     .join('&')
   
   // 加上密钥
@@ -54,10 +63,19 @@ function generateSign(params) {
     console.log('签名原始字符串:', stringSignTemp.replace(KEY, 'KEY_HIDDEN'))
     console.log('KEY长度:', KEY?.length || 0)
     console.log('KEY格式检查:', KEY && /^[a-zA-Z0-9]{32}$/.test(KEY) ? '正确' : '错误')
+    // 输出每个参数的键值对，用于调试
+    const paramPairs = Object.keys(params)
+      .filter(key => key !== 'sign' && params[key] !== null && params[key] !== undefined && params[key] !== '')
+      .sort()
+      .map(key => `${key}=${params[key]}`)
+    console.log('参与签名的参数:', paramPairs)
   }
   
   // MD5加密并转大写
-  return crypto.createHash('md5').update(stringSignTemp, 'utf8').digest('hex').toUpperCase()
+  // 注意：微信支付要求使用UTF-8编码
+  const sign = crypto.createHash('md5').update(stringSignTemp, 'utf8').digest('hex').toUpperCase()
+  
+  return sign
 }
 
 /**
@@ -121,14 +139,14 @@ export async function createNativeOrder(params) {
   }
 
   const requestParams = {
-    appid: APPID,
-    mch_id: MCHID,
+    appid: String(APPID),
+    mch_id: String(MCHID),
     nonce_str: generateNonceStr(),
     body: String(body).substring(0, 128), // 商品描述，最长128字符
     out_trade_no: String(out_trade_no),
-    total_fee: totalFeeInCents, // 金额（分）
-    spbill_create_ip: clientIp, // 处理后的IP地址
-    notify_url: NOTIFY_URL,
+    total_fee: String(totalFeeInCents), // 金额（分），必须转为字符串
+    spbill_create_ip: String(clientIp), // 处理后的IP地址
+    notify_url: String(NOTIFY_URL),
     trade_type: 'NATIVE' // Native支付类型
   }
 
