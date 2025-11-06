@@ -100,6 +100,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
 import { vipApi } from '@/api/vip'
+import { pricingApi } from '@/api/pricing'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import PaymentDialog from '@/components/PaymentDialog.vue'
@@ -115,14 +116,42 @@ const loading = ref(false)
 const paymentDialogVisible = ref(false)
 const orderNo = ref('')
 
-// 价格映射
-const priceMap = {
-  combo78: 150, // 7-8-9年级组合
-  combo1012: 150, // 10-11-12年级组合
-  g1: 60, g2: 60, g3: 60, g4: 60,
-  g5: 80, g6: 80,
-  g7: 80, g8: 80, g9: 100,
-  g10: 100, g11: 100, g12: 100
+// 价格映射（从后端API获取）
+const priceMap = ref({
+  combo78: 0,
+  combo1012: 0,
+  g1: 0, g2: 0, g3: 0, g4: 0,
+  g5: 0, g6: 0,
+  g7: 0, g8: 0, g9: 0,
+  g10: 0, g11: 0, g12: 0
+})
+
+// 加载价格配置
+const loadPricing = async () => {
+  try {
+    const res = await pricingApi.getAllPricing()
+    if (res.success && res.pricing) {
+      priceMap.value = {
+        combo78: res.pricing.vip.combo78 || 0,
+        combo1012: res.pricing.vip.combo1012 || 0,
+        g1: res.pricing.vip.g1 || 0,
+        g2: res.pricing.vip.g2 || 0,
+        g3: res.pricing.vip.g3 || 0,
+        g4: res.pricing.vip.g4 || 0,
+        g5: res.pricing.vip.g5 || 0,
+        g6: res.pricing.vip.g6 || 0,
+        g7: res.pricing.vip.g7 || 0,
+        g8: res.pricing.vip.g8 || 0,
+        g9: res.pricing.vip.g9 || 0,
+        g10: res.pricing.vip.g10 || 0,
+        g11: res.pricing.vip.g11 || 0,
+        g12: res.pricing.vip.g12 || 0
+      }
+    }
+  } catch (error) {
+    console.error('加载价格配置失败:', error)
+    ElMessage.error('加载价格配置失败')
+  }
 }
 
 const showComboOption = computed(() => {
@@ -139,11 +168,12 @@ const comboDesc = computed(() => {
   const grade = grades.value.find(g => g.id === selectedGrade.value)
   if (!grade) return ''
   const code = grade.code
+  const pricing = priceMap.value
   if (code === 'G7' || code === 'G8' || code === 'G9') {
-    return '同时购买7、8、9年级，每月150元'
+    return `同时购买7、8、9年级，每月${pricing.combo78}元`
   }
   if (code === 'G10' || code === 'G11' || code === 'G12') {
-    return '同时购买10、11、12年级，每月150元'
+    return `同时购买10、11、12年级，每月${pricing.combo1012}元`
   }
   return ''
 })
@@ -151,22 +181,24 @@ const comboDesc = computed(() => {
 const currentPrice = computed(() => {
   if (!selectedGrade.value) return 0
   
+  const pricing = priceMap.value
+  
   if (useCombo.value) {
     const grade = grades.value.find(g => g.id === selectedGrade.value)
     if (!grade) return 0
     const code = grade.code
     if (code === 'G7' || code === 'G8' || code === 'G9') {
-      return priceMap.combo78
+      return pricing.combo78
     }
     if (code === 'G10' || code === 'G11' || code === 'G12') {
-      return priceMap.combo1012
+      return pricing.combo1012
     }
   }
   
   const grade = grades.value.find(g => g.id === selectedGrade.value)
   if (!grade) return 0
   const code = grade.code.toLowerCase()
-  return priceMap[code] || 0
+  return pricing[code] || 0
 })
 
 const getGradeName = (gradeId) => {
@@ -235,6 +267,9 @@ const handlePaymentSuccess = async () => {
 
 onMounted(async () => {
   try {
+    // 加载价格配置
+    await loadPricing()
+    
     const res = await questionApi.getGrades()
     grades.value = res.grades || []
     

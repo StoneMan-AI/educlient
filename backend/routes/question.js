@@ -303,7 +303,9 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
     }
     
     // 需要创建支付订单
-    const amount = isFirstView ? 0.1 : 0.5
+    // 从数据库获取价格
+    const { getAnswerPrice } = await import('../utils/pricing.js')
+    const amount = await getAnswerPrice(isFirstView)
     const orderNo = `ANSWER_${Date.now()}_${userId}_${questionId}`
     
     await pool.query(
@@ -477,18 +479,22 @@ router.post('/download-group', authenticate, async (req, res, next) => {
       
       if (orderResult.rows.length === 0 || orderResult.rows[0].status !== 'paid') {
       // 创建支付订单
+      // 从数据库获取价格
+      const { getDownloadPrice } = await import('../utils/pricing.js')
+      const downloadAmount = await getDownloadPrice()
+      
       const orderNo = `DOWNLOAD_${Date.now()}_${userId}`
       await pool.query(
         `INSERT INTO orders (user_id, order_no, type, amount, question_ids, status)
-         VALUES ($1, $2, 'download', 1.00, $3::int[], 'pending')`,
-        [userId, orderNo, question_ids]
+         VALUES ($1, $2, 'download', $4, $3::int[], 'pending')`,
+        [userId, orderNo, question_ids, downloadAmount]
       )
       
       return res.status(200).json({
         success: true,
         need_payment: true,
         order_no: orderNo,
-        amount: 1.00
+        amount: downloadAmount
       })
       }
     }

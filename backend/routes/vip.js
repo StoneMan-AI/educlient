@@ -219,22 +219,31 @@ router.post('/order', authenticate, async (req, res, next) => {
       })
     }
     
-    // 验证价格
-    // TODO: 根据年级ID验证价格是否正确
+    // 验证价格（从数据库获取正确价格）
+    const { getVipPrice, validatePrice } = await import('../utils/pricing.js')
+    const correctPrice = await getVipPrice(grade_ids)
+    
+    // 验证前端传来的价格是否正确（防止篡改）
+    if (!await validatePrice('vip', amount, { gradeIds: grade_ids })) {
+      return res.status(400).json({
+        success: false,
+        message: `价格不正确，正确价格为 ¥${correctPrice}`
+      })
+    }
     
     const orderNo = `VIP_${Date.now()}_${userId}`
     
-    // 创建订单
+    // 创建订单（使用数据库中的正确价格，而不是前端传来的价格）
     await pool.query(
       `INSERT INTO orders (user_id, order_no, type, amount, grade_ids, status)
        VALUES ($1, $2, 'vip', $3, $4, 'pending')`,
-      [userId, orderNo, amount, grade_ids]
+      [userId, orderNo, correctPrice, grade_ids]
     )
     
     res.json({
       success: true,
       order_no: orderNo,
-      amount
+      amount: correctPrice
     })
   } catch (error) {
     next(error)

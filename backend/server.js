@@ -31,6 +31,7 @@ import vipRoutes from './routes/vip.js'
 import gradeRoutes from './routes/grade.js'
 import subjectRoutes from './routes/subject.js'
 import knowledgePointRoutes from './routes/knowledgePoint.js'
+import pricingRoutes from './routes/pricing.js'
 import debugRoutes from './routes/debug.js'
 
 app.use('/api/auth', authRoutes)
@@ -40,6 +41,7 @@ app.use('/api/vip', vipRoutes)
 app.use('/api/grades', gradeRoutes)
 app.use('/api/subjects', subjectRoutes)
 app.use('/api/knowledge-points', knowledgePointRoutes)
+app.use('/api/pricing', pricingRoutes)
 
 // 调试路由（生产环境建议禁用或添加访问限制）
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_DEBUG === 'true') {
