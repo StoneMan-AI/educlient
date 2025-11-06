@@ -31,6 +31,37 @@ router.get('/search', optionalAuth, async (req, res, next) => {
       原始参数: { grade_id, subject_id, knowledge_point_id }
     })
     
+    // 构建基础WHERE条件
+    const baseWhere = `
+      WHERE q.grade_id = $1 
+        AND q.subject_id = $2 
+        AND q.knowledge_point_id = $3
+        AND q.status = '已发布'
+    `
+    
+    const baseParams = [gradeId, subjectId, knowledgePointId]
+    
+    // VIP用户：排除已下载的题目（如果是一键生成）
+    let excludeCondition = ''
+    if (req.user && req.query.exclude_downloaded === 'true') {
+      excludeCondition = ` AND q.id NOT IN (
+        SELECT question_id FROM user_downloaded_questions 
+        WHERE user_id = $${baseParams.length + 1} AND knowledge_point_id = $${baseParams.length + 2}
+      )`
+      baseParams.push(req.user.id, knowledgePointId)
+    }
+    
+    // 先获取总数
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM questions q
+      ${baseWhere}${excludeCondition}
+    `
+    
+    const countResult = await pool.query(countQuery, baseParams)
+    const total = parseInt(countResult.rows[0]?.total || '0', 10)
+    
+    // 构建主查询（获取题目详情）
     let query = `
       SELECT q.*, 
              s.name as subject_name,
@@ -43,31 +74,13 @@ router.get('/search', optionalAuth, async (req, res, next) => {
       LEFT JOIN grades g ON q.grade_id = g.id
       LEFT JOIN knowledge_points kp ON q.knowledge_point_id = kp.id
       LEFT JOIN difficulty_levels dl ON q.difficulty_id = dl.id
-      WHERE q.grade_id = $1 
-        AND q.subject_id = $2 
-        AND q.knowledge_point_id = $3
-        AND q.status = '已发布'
+      ${baseWhere}${excludeCondition}
     `
     
-    const params = [gradeId, subjectId, knowledgePointId]
+    const params = [...baseParams] // 复制参数数组
     
-    // VIP用户：排除已下载的题目（如果是一键生成）
-    if (req.user && req.query.exclude_downloaded === 'true') {
-      query += ` AND q.id NOT IN (
-        SELECT question_id FROM user_downloaded_questions 
-        WHERE user_id = $${params.length + 1} AND knowledge_point_id = $${params.length + 2}
-      )`
-      params.push(req.user.id, knowledge_point_id)
-    }
-    
+    // 继续构建查询语句（添加ORDER BY和分页）
     query += ' ORDER BY q.created_at DESC'
-    
-    // 获取总数
-    const countResult = await pool.query(
-      query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM'),
-      params
-    )
-    const total = parseInt(countResult.rows[0].total)
     
     // 获取分页数据
     const offset = (parseInt(page) - 1) * parseInt(page_size)
@@ -78,8 +91,10 @@ router.get('/search', optionalAuth, async (req, res, next) => {
     
     // 调试日志
     console.log('查询结果:', {
-      total,
+      total: total,
+      total_type: typeof total,
       questions_count: result.rows.length,
+      count_result: countResult.rows[0],
       params: params
     })
     

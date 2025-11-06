@@ -18,7 +18,10 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 // 静态文件服务（用于提供图片）
-app.use('/uploads', express.static(join(__dirname, 'uploads')))
+// 支持通过环境变量配置上传目录，如果没有配置则使用默认路径
+const uploadsDir = process.env.UPLOAD_DIR || join(__dirname, 'uploads')
+app.use('/uploads', express.static(uploadsDir))
+console.log(`静态文件服务路径: /uploads -> ${uploadsDir}`)
 
 // 路由
 import authRoutes from './routes/auth.js'
