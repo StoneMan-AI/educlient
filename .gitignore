@@ -9,4 +9,4 @@ build/
 uploads/
 .vscode/
 .idea/
-
+*.md
