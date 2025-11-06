@@ -9,17 +9,34 @@ const router = express.Router()
 // 因为使用了express.raw中间件处理XML数据，必须在express.json()之前处理
 
 // 微信支付回调（用于更新订单状态）
-// 必须在所有其他路由之前，因为使用了express.raw中间件
-router.post('/payment-callback', express.raw({ type: 'application/xml' }), async (req, res, next) => {
+// 注意：express.raw中间件已在server.js中为这个路径配置，这里不需要重复配置
+router.post('/payment-callback', async (req, res, next) => {
   try {
     // 获取原始数据
+    // express.raw中间件会将body解析为Buffer
     let xmlData = req.body
+    
+    // 验证数据是否存在
+    if (!xmlData || (Buffer.isBuffer(xmlData) && xmlData.length === 0)) {
+      console.error('收到空的回调数据')
+      console.error('请求头:', JSON.stringify(req.headers))
+      console.error('请求方法:', req.method)
+      console.error('Content-Type:', req.headers['content-type'])
+      return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[数据为空]]></return_msg></xml>')
+    }
     
     // 如果是Buffer，转换为字符串
     if (Buffer.isBuffer(xmlData)) {
       xmlData = xmlData.toString('utf8')
+    } else if (typeof xmlData === 'object' && Object.keys(xmlData).length === 0) {
+      // 如果是空对象，说明express.json()已经处理过了，这是错误的
+      console.error('收到空对象，可能是中间件配置问题')
+      console.error('请求头 Content-Type:', req.headers['content-type'])
+      console.error('请求体类型:', typeof req.body)
+      console.error('请求体值:', req.body)
+      return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[数据格式错误]]></return_msg></xml>')
     } else if (typeof xmlData === 'object') {
-      // 如果是对象，可能是JSON格式，记录日志但不处理
+      // 如果是非空对象，记录日志
       console.error('收到非XML格式的回调数据:', JSON.stringify(xmlData))
       return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[数据格式错误]]></return_msg></xml>')
     } else {
@@ -41,8 +58,11 @@ router.post('/payment-callback', express.raw({ type: 'application/xml' }), async
       return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[数据格式错误]]></return_msg></xml>')
     }
     
-    console.log('收到微信支付回调（原始数据）:', xmlData.substring(0, 500))
+    // 记录接收到的数据（仅记录前500字符，避免日志过长）
+    console.log('收到微信支付回调')
+    console.log('Content-Type:', req.headers['content-type'])
     console.log('数据长度:', xmlData.length)
+    console.log('原始数据（前500字符）:', xmlData.substring(0, 500))
     
     // 解析XML数据
     const { parseCallbackXml, verifyPaymentCallback } = await import('../utils/wechatPayment.js')

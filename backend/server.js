@@ -14,6 +14,12 @@ const PORT = process.env.PORT || 3001
 
 // 中间件
 app.use(cors())
+
+// 重要：微信支付回调需要使用原始XML数据，必须在express.json()之前处理
+// 为支付回调路径单独配置express.raw中间件
+app.use('/api/vip/payment-callback', express.raw({ type: 'application/xml', limit: '10mb' }))
+
+// 其他路由使用JSON解析
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
