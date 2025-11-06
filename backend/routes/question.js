@@ -18,6 +18,19 @@ router.get('/search', optionalAuth, async (req, res, next) => {
       })
     }
     
+    // 转换为整数，确保类型匹配
+    const gradeId = parseInt(grade_id)
+    const subjectId = parseInt(subject_id)
+    const knowledgePointId = parseInt(knowledge_point_id)
+    
+    // 调试日志（生产环境可移除）
+    console.log('查询试题参数:', {
+      grade_id: gradeId,
+      subject_id: subjectId,
+      knowledge_point_id: knowledgePointId,
+      原始参数: { grade_id, subject_id, knowledge_point_id }
+    })
+    
     let query = `
       SELECT q.*, 
              s.name as subject_name,
@@ -36,7 +49,7 @@ router.get('/search', optionalAuth, async (req, res, next) => {
         AND q.status = '已发布'
     `
     
-    const params = [grade_id, subject_id, knowledge_point_id]
+    const params = [gradeId, subjectId, knowledgePointId]
     
     // VIP用户：排除已下载的题目（如果是一键生成）
     if (req.user && req.query.exclude_downloaded === 'true') {
@@ -63,6 +76,58 @@ router.get('/search', optionalAuth, async (req, res, next) => {
     
     const result = await pool.query(query, params)
     
+    // 调试日志
+    console.log('查询结果:', {
+      total,
+      questions_count: result.rows.length,
+      params: params
+    })
+    
+    // 如果查询结果为0，尝试不限制status查询（仅用于调试）
+    if (total === 0) {
+      console.log('未找到已发布题目，尝试查询所有状态的题目...')
+      const debugQuery = `
+        SELECT q.*, q.status,
+               s.name as subject_name,
+               g.name as grade_name,
+               kp.name as knowledge_point_name
+        FROM questions q
+        LEFT JOIN subjects s ON q.subject_id = s.id
+        LEFT JOIN grades g ON q.grade_id = g.id
+        LEFT JOIN knowledge_points kp ON q.knowledge_point_id = kp.id
+        WHERE q.grade_id = $1 
+          AND q.subject_id = $2 
+          AND q.knowledge_point_id = $3
+        LIMIT 5
+      `
+      const debugResult = await pool.query(debugQuery, params)
+      if (debugResult.rows.length > 0) {
+        console.log('找到题目但状态不是"已发布":', debugResult.rows.map(r => ({
+          id: r.id,
+          status: r.status,
+          grade_id: r.grade_id,
+          subject_id: r.subject_id,
+          knowledge_point_id: r.knowledge_point_id
+        })))
+        console.log('提示：需要将题目状态改为"已发布"才能查询到')
+      } else {
+        console.log('未找到任何匹配的题目')
+        // 检查是否有其他状态的题目
+        const statusQuery = `
+          SELECT status, COUNT(*) as count
+          FROM questions
+          WHERE grade_id = $1 AND subject_id = $2 AND knowledge_point_id = $3
+          GROUP BY status
+        `
+        const statusResult = await pool.query(statusQuery, params)
+        if (statusResult.rows.length > 0) {
+          console.log('各状态题目数量:', statusResult.rows)
+        } else {
+          console.log('该条件下确实没有题目数据')
+        }
+      }
+    }
+    
     res.json({
       success: true,
       questions: result.rows,
@@ -71,6 +136,7 @@ router.get('/search', optionalAuth, async (req, res, next) => {
       page_size: parseInt(page_size)
     })
   } catch (error) {
+    console.error('查询试题错误:', error)
     next(error)
   }
 })
