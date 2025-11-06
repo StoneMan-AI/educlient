@@ -5,6 +5,148 @@ import { createNativeOrder } from '../utils/wechatPayment.js'
 
 const router = express.Router()
 
+// 注意：支付回调路由必须在其他路由之前定义
+// 因为使用了express.raw中间件处理XML数据，必须在express.json()之前处理
+
+// 微信支付回调（用于更新订单状态）
+// 必须在所有其他路由之前，因为使用了express.raw中间件
+router.post('/payment-callback', express.raw({ type: 'application/xml' }), async (req, res, next) => {
+  try {
+    const xmlData = req.body.toString('utf8')
+    console.log('收到微信支付回调:', xmlData)
+    
+    // 解析XML数据
+    const { parseCallbackXml, verifyPaymentCallback } = await import('../utils/wechatPayment.js')
+    const callbackData = await parseCallbackXml(xmlData)
+    
+    console.log('解析后的回调数据:', callbackData)
+    
+    // 验证签名
+    if (!verifyPaymentCallback(callbackData)) {
+      console.error('微信支付回调签名验证失败')
+      return res.send('<xml><return_code><![CDATA[FAIL]]></return_code><return_msg><![CDATA[签名验证失败]]></return_msg></xml>')
+    }
+    
+    // 检查返回码
+    if (callbackData.return_code !== 'SUCCESS') {
+      console.error('微信支付回调返回失败:', callbackData.return_msg)
+      return res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
+    }
+    
+    // 检查业务结果
+    if (callbackData.result_code !== 'SUCCESS') {
+      console.error('微信支付业务失败:', callbackData.err_code_des)
+      return res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
+    }
+    
+    const outTradeNo = callbackData.out_trade_no
+    const transactionId = callbackData.transaction_id
+    const totalFee = callbackData.total_fee
+    
+    // 查找订单
+    const orderResult = await pool.query(
+      'SELECT * FROM orders WHERE order_no = $1',
+      [outTradeNo]
+    )
+    
+    if (orderResult.rows.length === 0) {
+      console.error('订单不存在:', outTradeNo)
+      return res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
+    }
+    
+    const order = orderResult.rows[0]
+    
+    // 如果订单已支付，直接返回成功
+    if (order.status === 'paid') {
+      console.log('订单已支付，跳过处理:', outTradeNo)
+      return res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
+    }
+    
+    // 更新订单状态
+    await pool.query(
+      `UPDATE orders 
+       SET status = 'paid', 
+           wechat_transaction_id = $1,
+           paid_at = NOW(),
+           updated_at = NOW()
+       WHERE order_no = $2`,
+      [transactionId, outTradeNo]
+    )
+    
+    console.log('订单支付成功，已更新状态:', outTradeNo)
+    
+    // 如果是VIP订单，处理VIP权限
+    if (order.type === 'vip' && order.grade_ids) {
+      const userId = order.user_id
+      
+      // 检查用户是否已有该年级的VIP
+      const existingVip = await pool.query(
+        `SELECT * FROM vip_memberships 
+         WHERE user_id = $1 AND status = 'active' 
+           AND grade_ids && $2::int[]`,
+        [userId, order.grade_ids]
+      )
+      
+      if (existingVip.rows.length > 0) {
+        // 延长VIP时间
+        const vip = existingVip.rows[0]
+        const newEndDate = new Date(vip.end_date)
+        newEndDate.setMonth(newEndDate.getMonth() + 1)
+        
+        await pool.query(
+          `UPDATE vip_memberships 
+           SET end_date = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [newEndDate, vip.id]
+        )
+      } else {
+        // 创建新的VIP记录
+        const startDate = new Date()
+        const endDate = new Date()
+        endDate.setMonth(endDate.getMonth() + 1)
+        
+        await pool.query(
+          `INSERT INTO vip_memberships (user_id, grade_ids, start_date, end_date, status)
+           VALUES ($1, $2, $3, $4, 'active')`,
+          [userId, order.grade_ids, startDate, endDate]
+        )
+      }
+      
+      // 更新订单的VIP关联
+      const vipResult = await pool.query(
+        `SELECT id FROM vip_memberships 
+         WHERE user_id = $1 AND grade_ids && $2::int[] AND status = 'active'
+         ORDER BY created_at DESC LIMIT 1`,
+        [userId, order.grade_ids]
+      )
+      
+      if (vipResult.rows.length > 0) {
+        await pool.query(
+          'UPDATE orders SET vip_membership_id = $1 WHERE order_no = $2',
+          [vipResult.rows[0].id, outTradeNo]
+        )
+      }
+    }
+    
+    // 如果是查看答案订单，记录查看记录
+    if (order.type === 'view_answer' && order.question_id) {
+      await pool.query(
+        `INSERT INTO user_answer_views (user_id, question_id, is_first_view)
+         VALUES ($1, $2, FALSE)
+         ON CONFLICT (user_id, question_id) DO UPDATE SET is_first_view = FALSE`,
+        [order.user_id, order.question_id]
+      )
+    }
+    
+    // 返回成功响应给微信
+    res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
+  } catch (error) {
+    console.error('处理微信支付回调失败:', error)
+    // 即使处理失败，也要返回SUCCESS，避免微信重复回调
+    res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
+  }
+})
+
 // 获取VIP信息
 router.get('/info', authenticate, async (req, res, next) => {
   try {
@@ -270,20 +412,6 @@ router.get('/order-status/:orderNo', authenticate, async (req, res, next) => {
       status: order.status,
       order: order
     })
-  } catch (error) {
-    next(error)
-  }
-})
-
-// 微信支付回调（用于更新订单状态）
-router.post('/payment-callback', express.raw({ type: 'application/xml' }), async (req, res, next) => {
-  try {
-    // TODO: 验证微信支付回调签名
-    // TODO: 解析XML数据
-    // TODO: 更新订单状态为paid
-    
-    // 返回成功响应给微信
-    res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
   } catch (error) {
     next(error)
   }

@@ -251,12 +251,33 @@ const handleViewAnswer = async () => {
   }
 }
 
-const handlePaymentPaid = () => {
+const handlePaymentPaid = async () => {
   paymentDialogVisible.value = false
+  
+  // 刷新用户信息（可能VIP状态已更新）
+  if (userStore.isLoggedIn) {
+    try {
+      await userStore.fetchUserInfo()
+    } catch (error) {
+      console.error('刷新用户信息失败', error)
+    }
+  }
+  
   if (paymentType.value === 'answer') {
-    answerDialogVisible.value = true
+    // 查看答案：重新获取答案（此时订单已支付）
+    try {
+      const res = await questionApi.viewAnswer(currentQuestion.value.id)
+      if (!res.need_payment) {
+        answerDialogVisible.value = true
+      } else {
+        ElMessage.error('获取答案失败，请稍后重试')
+      }
+    } catch (error) {
+      ElMessage.error('获取答案失败：' + (error.response?.data?.message || error.message))
+    }
   } else if (paymentType.value === 'download') {
-    performDownload()
+    // 下载试题组
+    await performDownload()
   }
 }
 
