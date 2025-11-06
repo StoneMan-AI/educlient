@@ -1,6 +1,7 @@
 import express from 'express'
 import { authenticate } from '../middleware/auth.js'
 import pool from '../config/database.js'
+import { createNativeOrder } from '../utils/wechatPayment.js'
 
 const router = express.Router()
 
@@ -127,26 +128,40 @@ router.get('/payment-qrcode/:orderNo', authenticate, async (req, res, next) => {
     }
     
     // 调用微信支付Native支付API生成二维码
-    // 注意：这是微信支付商户平台API，不是服务号API
-    // 需要先安装依赖：npm install xml2js
-    // 然后导入：import { createNativeOrder } from '../utils/wechatPayment.js'
-    // 
-    // 示例代码：
-    // const paymentResult = await createNativeOrder({
-    //   out_trade_no: orderNo,
-    //   total_fee: order.amount,
-    //   body: 'VIP充值',
-    //   spbill_create_ip: req.ip || req.connection.remoteAddress
-    // })
-    // const qrCodeUrl = paymentResult.code_url
-    
-    // 当前使用模拟数据
-    const qrCodeUrl = `https://api.example.com/qrcode/${orderNo}`
-    
-    res.json({
-      success: true,
-      qr_code_url: qrCodeUrl
-    })
+    try {
+      const clientIp = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || '127.0.0.1'
+      
+      const paymentResult = await createNativeOrder({
+        out_trade_no: orderNo,
+        total_fee: parseFloat(order.amount),
+        body: order.type === 'vip' ? 'VIP充值' : (order.type === 'view_answer' ? '查看答案' : '下载试题组'),
+        spbill_create_ip: clientIp
+      })
+      
+      if (paymentResult.success && paymentResult.code_url) {
+        res.json({
+          success: true,
+          qr_code_url: paymentResult.code_url
+        })
+      } else {
+        throw new Error('生成支付二维码失败')
+      }
+    } catch (error) {
+      console.error('生成微信支付二维码失败:', error)
+      
+      // 如果微信支付配置未完成，返回错误提示
+      if (!process.env.WECHAT_APPID || !process.env.WECHAT_MCHID || !process.env.WECHAT_KEY) {
+        return res.status(500).json({
+          success: false,
+          message: '微信支付未配置，请联系管理员'
+        })
+      }
+      
+      return res.status(500).json({
+        success: false,
+        message: '生成支付二维码失败：' + (error.message || '未知错误')
+      })
+    }
   } catch (error) {
     next(error)
   }

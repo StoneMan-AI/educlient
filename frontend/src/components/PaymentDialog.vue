@@ -50,6 +50,7 @@ import { useRouter } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import { vipApi } from '@/api/vip'
 import { ElMessage } from 'element-plus'
+import QRCode from 'qrcode'
 
 const props = defineProps({
   modelValue: {
@@ -93,7 +94,25 @@ const loadQrCode = async () => {
   
   try {
     const res = await vipApi.getPaymentQrCode(props.orderNo)
-    qrCodeUrl.value = res.qr_code_url
+    const codeUrl = res.qr_code_url
+    
+    // 将微信支付的code_url转换为二维码图片
+    // code_url格式类似：weixin://wxpay/bizpayurl?pr=xxx
+    try {
+      const qrCodeDataUrl = await QRCode.toDataURL(codeUrl, {
+        width: 200,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      })
+      qrCodeUrl.value = qrCodeDataUrl
+    } catch (qrError) {
+      console.error('生成二维码图片失败:', qrError)
+      ElMessage.error('生成二维码图片失败')
+      return
+    }
     
     // 开始轮询订单状态
     startPolling()
