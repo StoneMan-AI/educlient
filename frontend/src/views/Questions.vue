@@ -5,6 +5,12 @@
         <div class="header-content">
           <el-button @click="$router.push('/search')" :icon="ArrowLeft">返回查询</el-button>
           <div class="header-actions">
+            <el-select v-model="sortBy" @change="handleSortChange" placeholder="排序方式" style="width: 150px; margin-right: 15px;">
+              <el-option label="最新上传" value="created_at_desc" />
+              <el-option label="最早上传" value="created_at_asc" />
+              <el-option label="下载量最多" value="download_count_desc" />
+              <el-option label="下载量最少" value="download_count_asc" />
+            </el-select>
             <span class="selected-count">已选：{{ questionStore.selectedCount }}/15</span>
             <el-button 
               type="primary" 
@@ -56,7 +62,7 @@
           <div class="question-footer">
             <el-button-group>
               <el-button @click="handlePrev" :disabled="currentIndex === 0">上一题</el-button>
-              <el-button @click="handleNext" :disabled="currentIndex === total - 1">下一题</el-button>
+              <el-button @click="handleNext" :disabled="currentIndex >= questions.length - 1">下一题</el-button>
             </el-button-group>
           </div>
         </el-card>
@@ -108,6 +114,7 @@ const paymentDialogVisible = ref(false)
 const currentOrderNo = ref('')
 const paymentAmount = ref(0)
 const paymentType = ref('answer') // 'answer' | 'download'
+const sortBy = ref('created_at_desc') // 默认按最新上传时间排序
 
 const isSelected = computed(() => {
   return currentQuestion.value ? questionStore.isSelected(currentQuestion.value.id) : false
@@ -118,7 +125,8 @@ const loadQuestions = async () => {
     const params = {
       grade_id: route.query.grade_id,
       subject_id: route.query.subject_id,
-      knowledge_point_id: route.query.knowledge_point_id
+      knowledge_point_id: route.query.knowledge_point_id,
+      sort_by: sortBy.value
     }
     
     const res = await questionApi.searchQuestions(params)
@@ -126,9 +134,15 @@ const loadQuestions = async () => {
     total.value = res.total || 0
     
     if (questions.value.length > 0) {
+      // 如果当前索引超出范围，重置为0
+      if (currentIndex.value >= questions.value.length) {
+        currentIndex.value = 0
+      }
+      currentQuestion.value = questions.value[currentIndex.value]
+      questionStore.setCurrentQuestion(currentQuestion.value)
+    } else {
       currentIndex.value = 0
-      currentQuestion.value = questions.value[0]
-      questionStore.setCurrentQuestion(questions.value[0])
+      currentQuestion.value = null
     }
     
     // 如果是VIP用户，加载已下载的题目
@@ -145,6 +159,12 @@ const loadQuestions = async () => {
   }
 }
 
+const handleSortChange = () => {
+  // 排序改变时，重置到第一题并重新加载
+  currentIndex.value = 0
+  loadQuestions()
+}
+
 const handlePrev = () => {
   if (currentIndex.value > 0) {
     currentIndex.value--
@@ -154,7 +174,7 @@ const handlePrev = () => {
 }
 
 const handleNext = () => {
-  if (currentIndex.value < total - 1) {
+  if (currentIndex.value < questions.value.length - 1) {
     currentIndex.value++
     currentQuestion.value = questions.value[currentIndex.value]
     questionStore.setCurrentQuestion(currentQuestion.value)

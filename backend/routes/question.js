@@ -79,8 +79,37 @@ router.get('/search', optionalAuth, async (req, res, next) => {
     
     const params = [...baseParams] // 复制参数数组
     
+    // 处理排序参数
+    const sortBy = req.query.sort_by || 'created_at_desc'
+    let orderBy = 'q.created_at DESC' // 默认按最新上传时间排序
+    
+    switch (sortBy) {
+      case 'created_at_desc':
+        orderBy = 'q.created_at DESC'
+        break
+      case 'created_at_asc':
+        orderBy = 'q.created_at ASC'
+        break
+      case 'download_count_desc':
+        // 按下载量降序（需要统计下载量）
+        orderBy = `(
+          SELECT COUNT(*) FROM user_downloaded_questions 
+          WHERE question_id = q.id
+        ) DESC, q.created_at DESC`
+        break
+      case 'download_count_asc':
+        // 按下载量升序
+        orderBy = `(
+          SELECT COUNT(*) FROM user_downloaded_questions 
+          WHERE question_id = q.id
+        ) ASC, q.created_at DESC`
+        break
+      default:
+        orderBy = 'q.created_at DESC'
+    }
+    
     // 继续构建查询语句（添加ORDER BY和分页）
-    query += ' ORDER BY q.created_at DESC'
+    query += ` ORDER BY ${orderBy}`
     
     // 获取分页数据
     const offset = (parseInt(page) - 1) * parseInt(page_size)

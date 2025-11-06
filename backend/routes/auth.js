@@ -99,9 +99,10 @@ router.post('/login', async (req, res, next) => {
     )
     
     if (result.rows.length === 0) {
-      return res.status(401).json({
+      return res.status(404).json({
         success: false,
-        message: '手机号或密码错误'
+        message: '该手机号未注册，请先注册账号',
+        code: 'USER_NOT_FOUND'
       })
     }
     
@@ -120,7 +121,7 @@ router.post('/login', async (req, res, next) => {
     if (!isValid) {
       return res.status(401).json({
         success: false,
-        message: '手机号或密码错误'
+        message: '密码错误，请重新输入'
       })
     }
     

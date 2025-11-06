@@ -127,7 +127,22 @@ const handleSubmit = async () => {
       const redirect = route.query.redirect || '/'
       router.push(redirect)
     } catch (error) {
-      ElMessage.error(error.response?.data?.message || (isLogin.value ? '登录失败' : '注册失败'))
+      const errorMessage = error.response?.data?.message || (isLogin.value ? '登录失败' : '注册失败')
+      const errorCode = error.response?.data?.code
+      
+      // 如果是用户未注册，提示并切换到注册模式
+      if (errorCode === 'USER_NOT_FOUND' && isLogin.value) {
+        ElMessage.warning('该手机号未注册，请先注册账号')
+        // 切换到注册模式，保留手机号
+        isLogin.value = false
+        form.value.password = ''
+        form.value.confirmPassword = ''
+        if (formRef.value) {
+          formRef.value.clearValidate()
+        }
+      } else {
+        ElMessage.error(errorMessage)
+      }
     } finally {
       loading.value = false
     }
