@@ -52,6 +52,8 @@ function generateSign(params) {
   // 调试日志（生产环境可移除）
   if (process.env.NODE_ENV === 'development' || process.env.DEBUG_WECHAT === 'true') {
     console.log('签名原始字符串:', stringSignTemp.replace(KEY, 'KEY_HIDDEN'))
+    console.log('KEY长度:', KEY?.length || 0)
+    console.log('KEY格式检查:', KEY && /^[a-zA-Z0-9]{32}$/.test(KEY) ? '正确' : '错误')
   }
   
   // MD5加密并转大写
@@ -108,6 +110,16 @@ export async function createNativeOrder(params) {
     totalFeeInCents = Math.round(total_fee)
   }
 
+  // IP地址处理：将IPv6映射的IPv4地址转换为纯IPv4
+  let clientIp = spbill_create_ip || '127.0.0.1'
+  if (clientIp.startsWith('::ffff:')) {
+    clientIp = clientIp.replace('::ffff:', '')
+  }
+  // 确保是有效的IPv4地址格式
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(clientIp)) {
+    clientIp = '127.0.0.1'
+  }
+
   const requestParams = {
     appid: APPID,
     mch_id: MCHID,
@@ -115,7 +127,7 @@ export async function createNativeOrder(params) {
     body: String(body).substring(0, 128), // 商品描述，最长128字符
     out_trade_no: String(out_trade_no),
     total_fee: totalFeeInCents, // 金额（分）
-    spbill_create_ip: spbill_create_ip || '127.0.0.1',
+    spbill_create_ip: clientIp, // 处理后的IP地址
     notify_url: NOTIFY_URL,
     trade_type: 'NATIVE' // Native支付类型
   }
@@ -127,9 +139,10 @@ export async function createNativeOrder(params) {
   if (process.env.NODE_ENV === 'development' || process.env.DEBUG_WECHAT === 'true') {
     console.log('微信支付请求参数:', {
       ...requestParams,
-      sign: 'SIGN_HIDDEN',
-      key: 'KEY_HIDDEN'
+      sign: 'SIGN_HIDDEN'
     })
+    console.log('生成的签名:', requestParams.sign)
+    console.log('KEY前4位:', KEY ? KEY.substring(0, 4) + '...' : '未配置')
   }
 
   // 转换为XML

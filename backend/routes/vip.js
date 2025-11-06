@@ -129,7 +129,21 @@ router.get('/payment-qrcode/:orderNo', authenticate, async (req, res, next) => {
     
     // 调用微信支付Native支付API生成二维码
     try {
-      const clientIp = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || '127.0.0.1'
+      // 获取客户端IP，处理IPv6映射的IPv4地址
+      let clientIp = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || '127.0.0.1'
+      
+      // 如果是IPv6映射的IPv4地址，提取IPv4部分
+      if (clientIp.startsWith('::ffff:')) {
+        clientIp = clientIp.replace('::ffff:', '')
+      }
+      // 如果是从x-forwarded-for获取的，可能包含多个IP，取第一个
+      if (clientIp.includes(',')) {
+        clientIp = clientIp.split(',')[0].trim()
+      }
+      // 确保是有效的IPv4地址
+      if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(clientIp)) {
+        clientIp = '127.0.0.1'
+      }
       
       const paymentResult = await createNativeOrder({
         out_trade_no: orderNo,
