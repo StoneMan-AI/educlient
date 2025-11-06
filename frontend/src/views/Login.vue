@@ -19,13 +19,13 @@
           />
         </el-form-item>
         
-        <el-form-item v-if="!isLogin" label="验证码" prop="code">
-          <div class="code-input">
-            <el-input v-model="form.code" placeholder="请输入验证码" />
-            <el-button @click="sendCode" :disabled="codeCountdown > 0">
-              {{ codeCountdown > 0 ? `${codeCountdown}秒后重试` : '发送验证码' }}
-            </el-button>
-          </div>
+        <el-form-item v-if="!isLogin" label="确认密码" prop="confirmPassword">
+          <el-input 
+            v-model="form.confirmPassword" 
+            type="password" 
+            placeholder="请再次输入密码"
+            show-password
+          />
         </el-form-item>
         
         <el-form-item>
@@ -35,9 +35,14 @@
         </el-form-item>
         
         <el-form-item>
-          <el-link type="primary" @click="toggleMode">
-            {{ isLogin ? '还没有账号？立即注册' : '已有账号？立即登录' }}
-          </el-link>
+          <div class="form-footer">
+            <el-link type="primary" @click="toggleMode">
+              {{ isLogin ? '还没有账号？立即注册' : '已有账号？立即登录' }}
+            </el-link>
+            <el-link v-if="isLogin" type="primary" @click="$router.push('/forgot-password')" style="margin-left: 20px;">
+              忘记密码？
+            </el-link>
+          </div>
         </el-form-item>
       </el-form>
     </el-card>
@@ -56,14 +61,24 @@ const userStore = useUserStore()
 
 const isLogin = ref(true)
 const loading = ref(false)
-const codeCountdown = ref(0)
 const formRef = ref(null)
 
 const form = ref({
   phone: '',
   password: '',
-  code: ''
+  confirmPassword: ''
 })
+
+// 自定义验证规则：确认密码必须与密码相同
+const validateConfirmPassword = (rule, value, callback) => {
+  if (value === '') {
+    callback(new Error('请再次输入密码'))
+  } else if (value !== form.value.password) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
 
 const rules = {
   phone: [
@@ -74,36 +89,15 @@ const rules = {
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少6位', trigger: 'blur' }
   ],
-  code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' }
+  confirmPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
-
-const sendCode = async () => {
-  if (!form.value.phone) {
-    ElMessage.warning('请先输入手机号')
-    return
-  }
-  
-  if (!/^1[3-9]\d{9}$/.test(form.value.phone)) {
-    ElMessage.warning('请输入正确的手机号')
-    return
-  }
-  
-  // TODO: 调用发送验证码API
-  ElMessage.success('验证码已发送')
-  codeCountdown.value = 60
-  const timer = setInterval(() => {
-    codeCountdown.value--
-    if (codeCountdown.value <= 0) {
-      clearInterval(timer)
-    }
-  }, 1000)
 }
 
 const toggleMode = () => {
   isLogin.value = !isLogin.value
-  form.value = { phone: '', password: '', code: '' }
+  form.value = { phone: '', password: '', confirmPassword: '' }
   if (formRef.value) {
     formRef.value.clearValidate()
   }
@@ -121,7 +115,8 @@ const handleSubmit = async () => {
         await userStore.login(form.value.phone, form.value.password)
         ElMessage.success('登录成功')
       } else {
-        await userStore.register(form.value.phone, form.value.password, form.value.code)
+        // 注册时不需要验证码
+        await userStore.register(form.value.phone, form.value.password)
         ElMessage.success('注册成功')
       }
       
@@ -158,13 +153,12 @@ const handleSubmit = async () => {
   text-align: center;
 }
 
-.code-input {
+.form-footer {
   display: flex;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
-.code-input .el-input {
-  flex: 1;
-}
 </style>
 

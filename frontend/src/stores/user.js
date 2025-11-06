@@ -33,9 +33,9 @@ export const useUserStore = defineStore('user', {
       }
     },
     
-    async register(phone, password, code) {
+    async register(phone, password) {
       try {
-        const res = await userApi.register({ phone, password, code })
+        const res = await userApi.register({ phone, password })
         this.token = res.token
         this.userInfo = res.user
         localStorage.setItem('token', res.token)

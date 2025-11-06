@@ -95,6 +95,16 @@ CREATE TABLE user_answer_views (
     UNIQUE(user_id, question_id)
 );
 
+-- 重置密码验证码表
+CREATE TABLE reset_password_codes (
+    id SERIAL PRIMARY KEY,
+    phone VARCHAR(20) NOT NULL,
+    code VARCHAR(10) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 创建索引
 CREATE INDEX idx_users_phone ON users(phone);
 CREATE INDEX idx_vip_memberships_user ON vip_memberships(user_id);
@@ -109,6 +119,8 @@ CREATE INDEX idx_user_favorite_questions_user ON user_favorite_questions(user_id
 CREATE INDEX idx_question_groups_user ON question_groups(user_id);
 CREATE INDEX idx_guest_access_logs_ip ON guest_access_logs(ip_address);
 CREATE INDEX idx_user_answer_views_user ON user_answer_views(user_id);
+CREATE INDEX idx_reset_password_codes_phone ON reset_password_codes(phone);
+CREATE INDEX idx_reset_password_codes_expires ON reset_password_codes(expires_at);
 
 -- 创建更新时间触发器
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users 
@@ -145,4 +157,5 @@ COMMENT ON TABLE user_favorite_questions IS '用户收藏试题表';
 COMMENT ON TABLE question_groups IS '试题组表';
 COMMENT ON TABLE guest_access_logs IS '未登录用户访问记录表，用于限流';
 COMMENT ON TABLE user_answer_views IS '用户查看答案记录表';
+COMMENT ON TABLE reset_password_codes IS '重置密码验证码表';
 
