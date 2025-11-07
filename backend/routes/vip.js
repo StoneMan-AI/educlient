@@ -5,6 +5,85 @@ import { createNativeOrder } from '../utils/wechatPayment.js'
 
 const router = express.Router()
 
+const ENABLE_PAYMENT_MOCK = process.env.ENABLE_PAYMENT_MOCK === 'true' || process.env.NODE_ENV !== 'production'
+
+async function completeOrderPayment(order, { transactionId = null, isMock = false } = {}) {
+  const finalTransactionId = transactionId || `MOCK-${Date.now()}`
+
+  await pool.query(
+    `UPDATE orders 
+     SET status = 'paid', 
+         wechat_transaction_id = $1,
+         paid_at = NOW(),
+         updated_at = NOW()
+     WHERE order_no = $2`,
+    [finalTransactionId, order.order_no]
+  )
+
+  if (order.type === 'vip' && order.grade_ids) {
+    const userId = order.user_id
+
+    const existingVip = await pool.query(
+      `SELECT * FROM vip_memberships 
+       WHERE user_id = $1 AND status = 'active' 
+         AND grade_ids && $2::int[]`,
+      [userId, order.grade_ids]
+    )
+
+    if (existingVip.rows.length > 0) {
+      const vip = existingVip.rows[0]
+      const newEndDate = new Date(vip.end_date)
+      newEndDate.setMonth(newEndDate.getMonth() + 1)
+
+      await pool.query(
+        `UPDATE vip_memberships 
+         SET end_date = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [newEndDate, vip.id]
+      )
+    } else {
+      const startDate = new Date()
+      const endDate = new Date()
+      endDate.setMonth(endDate.getMonth() + 1)
+
+      await pool.query(
+        `INSERT INTO vip_memberships (user_id, grade_ids, start_date, end_date, status)
+         VALUES ($1, $2, $3, $4, 'active')`,
+        [userId, order.grade_ids, startDate, endDate]
+      )
+    }
+
+    const vipResult = await pool.query(
+      `SELECT id FROM vip_memberships 
+       WHERE user_id = $1 AND grade_ids && $2::int[] AND status = 'active'
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId, order.grade_ids]
+    )
+
+    if (vipResult.rows.length > 0) {
+      await pool.query(
+        'UPDATE orders SET vip_membership_id = $1 WHERE order_no = $2',
+        [vipResult.rows[0].id, order.order_no]
+      )
+    }
+  }
+
+  if (order.type === 'view_answer' && order.question_id) {
+    await pool.query(
+      `INSERT INTO user_answer_views (user_id, question_id, is_first_view)
+       VALUES ($1, $2, FALSE)
+       ON CONFLICT (user_id, question_id) DO UPDATE SET is_first_view = FALSE`,
+      [order.user_id, order.question_id]
+    )
+  }
+
+  if (isMock) {
+    console.log('模拟订单支付成功:', order.order_no)
+  } else {
+    console.log('订单支付成功，已更新状态:', order.order_no)
+  }
+}
+
 // 注意：支付回调路由必须在其他路由之前定义
 // 因为使用了express.raw中间件处理XML数据，必须在express.json()之前处理
 
@@ -112,80 +191,7 @@ router.post('/payment-callback', async (req, res, next) => {
     }
     
     // 更新订单状态
-    await pool.query(
-      `UPDATE orders 
-       SET status = 'paid', 
-           wechat_transaction_id = $1,
-           paid_at = NOW(),
-           updated_at = NOW()
-       WHERE order_no = $2`,
-      [transactionId, outTradeNo]
-    )
-    
-    console.log('订单支付成功，已更新状态:', outTradeNo)
-    
-    // 如果是VIP订单，处理VIP权限
-    if (order.type === 'vip' && order.grade_ids) {
-      const userId = order.user_id
-      
-      // 检查用户是否已有该年级的VIP
-      const existingVip = await pool.query(
-        `SELECT * FROM vip_memberships 
-         WHERE user_id = $1 AND status = 'active' 
-           AND grade_ids && $2::int[]`,
-        [userId, order.grade_ids]
-      )
-      
-      if (existingVip.rows.length > 0) {
-        // 延长VIP时间
-        const vip = existingVip.rows[0]
-        const newEndDate = new Date(vip.end_date)
-        newEndDate.setMonth(newEndDate.getMonth() + 1)
-        
-        await pool.query(
-          `UPDATE vip_memberships 
-           SET end_date = $1, updated_at = NOW()
-           WHERE id = $2`,
-          [newEndDate, vip.id]
-        )
-      } else {
-        // 创建新的VIP记录
-        const startDate = new Date()
-        const endDate = new Date()
-        endDate.setMonth(endDate.getMonth() + 1)
-        
-        await pool.query(
-          `INSERT INTO vip_memberships (user_id, grade_ids, start_date, end_date, status)
-           VALUES ($1, $2, $3, $4, 'active')`,
-          [userId, order.grade_ids, startDate, endDate]
-        )
-      }
-      
-      // 更新订单的VIP关联
-      const vipResult = await pool.query(
-        `SELECT id FROM vip_memberships 
-         WHERE user_id = $1 AND grade_ids && $2::int[] AND status = 'active'
-         ORDER BY created_at DESC LIMIT 1`,
-        [userId, order.grade_ids]
-      )
-      
-      if (vipResult.rows.length > 0) {
-        await pool.query(
-          'UPDATE orders SET vip_membership_id = $1 WHERE order_no = $2',
-          [vipResult.rows[0].id, outTradeNo]
-        )
-      }
-    }
-    
-    // 如果是查看答案订单，记录查看记录
-    if (order.type === 'view_answer' && order.question_id) {
-      await pool.query(
-        `INSERT INTO user_answer_views (user_id, question_id, is_first_view)
-         VALUES ($1, $2, FALSE)
-         ON CONFLICT (user_id, question_id) DO UPDATE SET is_first_view = FALSE`,
-        [order.user_id, order.question_id]
-      )
-    }
+    await completeOrderPayment(order, { transactionId })
     
     // 返回成功响应给微信
     res.send('<xml><return_code><![CDATA[SUCCESS]]></return_code></xml>')
@@ -491,6 +497,61 @@ router.get('/order-status/:orderNo', authenticate, async (req, res, next) => {
       success: true,
       status: order.status,
       order: order
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 模拟支付成功（仅测试环境启用）
+router.post('/mock-pay', authenticate, async (req, res, next) => {
+  try {
+    if (!ENABLE_PAYMENT_MOCK) {
+      return res.status(403).json({
+        success: false,
+        message: '模拟支付功能未启用'
+      })
+    }
+
+    const { order_no: orderNo } = req.body
+
+    if (!orderNo) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少订单号'
+      })
+    }
+
+    const userId = req.user.id
+
+    const orderResult = await pool.query(
+      'SELECT * FROM orders WHERE order_no = $1 AND user_id = $2',
+      [orderNo, userId]
+    )
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: '订单不存在'
+      })
+    }
+
+    const order = orderResult.rows[0]
+
+    if (order.status === 'paid') {
+      return res.json({
+        success: true,
+        message: '订单已支付',
+        status: 'paid'
+      })
+    }
+
+    await completeOrderPayment(order, { isMock: true })
+
+    res.json({
+      success: true,
+      message: '模拟支付成功',
+      status: 'paid'
     })
   } catch (error) {
     next(error)

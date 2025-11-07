@@ -19,6 +19,11 @@ export const vipApi = {
   // 查询订单状态
   checkOrderStatus(orderNo) {
     return api.get(`/vip/order-status/${orderNo}`)
+  },
+
+  // 模拟支付成功（测试）
+  mockPay(orderNo) {
+    return api.post('/vip/mock-pay', { order_no: orderNo })
   }
 }
 

@@ -18,11 +18,35 @@
             <img :src="qrCodeUrl" alt="支付二维码" />
           </div>
           <p class="qr-status">{{ paymentStatus }}</p>
+          <div v-if="enableMockPay" class="mock-pay">
+            <el-button
+              type="success"
+              plain
+              size="small"
+              :loading="isMocking"
+              @click="handleMockPay"
+            >
+              一键支付成功（测试）
+            </el-button>
+            <span class="mock-tip">仅用于微信未开通时的测试</span>
+          </div>
         </div>
         
         <div v-else class="loading">
           <el-icon class="is-loading"><Loading /></el-icon>
           <span>正在生成支付二维码...</span>
+          <div v-if="enableMockPay" class="mock-pay">
+            <el-button
+              type="success"
+              plain
+              size="small"
+              :loading="isMocking"
+              @click="handleMockPay"
+            >
+              一键支付成功（测试）
+            </el-button>
+            <span class="mock-tip">仅用于微信未开通时的测试</span>
+          </div>
         </div>
         
         <div class="vip-option">
@@ -77,6 +101,8 @@ const router = useRouter()
 const qrCodeUrl = ref('')
 const paymentStatus = ref('等待支付')
 const checkInterval = ref(null)
+const isMocking = ref(false)
+const enableMockPay = import.meta.env.VITE_ENABLE_PAYMENT_MOCK === 'true'
 
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -153,12 +179,37 @@ const handleClose = () => {
     clearInterval(checkInterval.value)
     checkInterval.value = null
   }
+  isMocking.value = false
   emit('update:modelValue', false)
 }
 
 const handleUpgradeVip = () => {
   dialogVisible.value = false
   router.push('/vip')
+}
+
+const handleMockPay = async () => {
+  if (!props.orderNo || isMocking.value) return
+
+  try {
+    isMocking.value = true
+    await vipApi.mockPay(props.orderNo)
+    paymentStatus.value = '支付成功（模拟）'
+
+    if (checkInterval.value) {
+      clearInterval(checkInterval.value)
+      checkInterval.value = null
+    }
+
+    ElMessage.success('已模拟支付成功')
+    emit('paid')
+    dialogVisible.value = false
+  } catch (error) {
+    const message = error.response?.data?.message || error.message || '模拟支付失败'
+    ElMessage.error('模拟支付失败：' + message)
+  } finally {
+    isMocking.value = false
+  }
 }
 
 watch(() => props.modelValue, (val) => {
@@ -241,6 +292,19 @@ onUnmounted(() => {
   color: #409eff;
   font-weight: bold;
   font-size: 14px;
+}
+
+.mock-pay {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.mock-tip {
+  font-size: 12px;
+  color: #999;
 }
 
 .loading {
