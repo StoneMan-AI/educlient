@@ -171,6 +171,12 @@
                 {{ formatDateTime(scope.row.owned_at) }}
               </template>
             </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="scope">
+                <el-button type="primary" text @click="handleOwnedViewQuestion(scope.row)">查看题目</el-button>
+                <el-button type="success" text @click="handleOwnedViewAnswer(scope.row)">查看答案</el-button>
+              </template>
+            </el-table-column>
           </el-table>
 
           <div class="owned-pagination">
@@ -194,6 +200,31 @@
       payment-type="download"
       @paid="handleDownloadPaid"
     />
+
+    <el-dialog
+      v-model="questionPreviewDialogVisible"
+      title="题目预览"
+      width="80%"
+      destroy-on-close
+    >
+      <div v-if="previewQuestion">
+        <img
+          v-if="previewQuestion.question_image_url"
+          :src="previewQuestion.question_image_url"
+          alt="题目"
+          style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;"
+        />
+        <div v-else class="no-image">暂无题目图片</div>
+      </div>
+      <template #footer>
+        <el-button @click="questionPreviewDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <AnswerDialog
+      v-model="answerDialogVisible"
+      :question="previewAnswer"
+    />
   </div>
 </template>
 
@@ -201,6 +232,7 @@
 import { ref, reactive, onMounted, watch, nextTick } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import AnswerDialog from '@/components/AnswerDialog.vue'
 import { useUserStore } from '@/stores/user'
 import { questionApi } from '@/api/question'
 import { vipApi } from '@/api/vip'
@@ -232,6 +264,10 @@ const downloadPaymentDialogVisible = ref(false)
 const downloadOrderNo = ref('')
 const downloadAmount = ref(0)
 const pendingDownloadIds = ref([])
+const questionPreviewDialogVisible = ref(false)
+const answerDialogVisible = ref(false)
+const previewQuestion = ref(null)
+const previewAnswer = ref(null)
 
 const loadGrades = async () => {
   try {
@@ -420,6 +456,42 @@ const handleOwnedSelect = (selection, row) => {
 
 const handleOwnedSelectionChange = (selection) => {
   ownedSelected.value = selection
+}
+
+const handleOwnedViewQuestion = async (row) => {
+  try {
+    const res = await questionApi.getQuestionDetail(row.id)
+    previewQuestion.value = res.question || null
+    previewAnswer.value = null
+    if (!previewQuestion.value) {
+      ElMessage.warning('未找到题目信息')
+      return
+    }
+    questionPreviewDialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('获取题目信息失败：' + (error.response?.data?.message || error.message))
+  }
+}
+
+const handleOwnedViewAnswer = async (row) => {
+  try {
+    const res = await questionApi.viewAnswer(row.id)
+    if (res.need_payment) {
+      ElMessage.warning('请在试题页面完成支付后再查看答案')
+    } else {
+      previewQuestion.value = {
+        id: row.id,
+        question_image_url: row.question_image_url || null,
+        grade_name: row.grade_name,
+        subject_name: row.subject_name,
+        knowledge_point_name: row.knowledge_point_name
+      }
+      previewAnswer.value = res.answer_url ? { id: row.id, answer_image_url: res.answer_url } : null
+      answerDialogVisible.value = true
+    }
+  } catch (error) {
+    ElMessage.error('查看答案失败：' + (error.response?.data?.message || error.message))
+  }
 }
 
 const handleOwnedDownload = async () => {

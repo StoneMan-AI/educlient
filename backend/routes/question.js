@@ -303,14 +303,32 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
     }
     
     // 非VIP用户，检查是否已查看过答案
-    const viewResult = await pool.query(
-      'SELECT viewed_at FROM user_answer_views WHERE user_id = $1 AND question_id = $2',
+    const paidQuestionResult = await pool.query(
+      `SELECT id FROM orders
+       WHERE user_id = $1 AND question_id = $2 AND type = 'view_answer' AND status = 'paid'
+       ORDER BY paid_at DESC LIMIT 1`,
       [userId, questionId]
     )
     
-    let lastViewedAt = null
-    if (viewResult.rows.length > 0) {
-      lastViewedAt = viewResult.rows[0].viewed_at
+    if (paidQuestionResult.rows.length > 0) {
+      await pool.query(
+        `INSERT INTO user_answer_views (user_id, question_id, viewed_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (user_id, question_id) DO UPDATE
+           SET viewed_at = NOW()`,
+        [userId, questionId]
+      )
+      
+      const questionResult = await pool.query(
+        'SELECT answer_image_url FROM questions WHERE id = $1',
+        [questionId]
+      )
+      
+      return res.json({
+        success: true,
+        need_payment: false,
+        answer_url: questionResult.rows[0]?.answer_image_url
+      })
     }
     
     const paidHistoryResult = await pool.query(
@@ -320,41 +338,6 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
       [userId]
     )
     const isFirstPurchase = paidHistoryResult.rows.length === 0
-    
-    // 检查是否有未支付的订单
-    const orderResult = await pool.query(
-      `SELECT id, order_no, status, paid_at FROM orders 
-       WHERE user_id = $1 AND question_id = $2 AND type = 'view_answer' 
-       ORDER BY created_at DESC LIMIT 1`,
-      [userId, questionId]
-    )
-    
-    if (orderResult.rows.length > 0) {
-      const order = orderResult.rows[0]
-      if (order.status === 'paid') {
-        const hasUnusedPayment = order.paid_at && (!lastViewedAt || new Date(order.paid_at) > new Date(lastViewedAt))
-        
-        if (hasUnusedPayment) {
-          await pool.query(
-            `INSERT INTO user_answer_views (user_id, question_id, viewed_at)
-             VALUES ($1, $2, NOW())
-             ON CONFLICT (user_id, question_id) DO UPDATE
-               SET viewed_at = NOW()`,
-            [userId, questionId]
-          )
-          const questionResult = await pool.query(
-            'SELECT answer_image_url FROM questions WHERE id = $1',
-            [questionId]
-          )
-          
-          return res.json({
-            success: true,
-            need_payment: false,
-            answer_url: questionResult.rows[0]?.answer_image_url
-          })
-        }
-      }
-    }
     
     // 需要创建支付订单
     // 从数据库获取价格
