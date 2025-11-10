@@ -50,7 +50,15 @@ export const questionApi = {
       })
       
       const contentType = response.headers.get('content-type')
-      
+      if (!response.ok) {
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json()
+          throw new Error(errorData.message || '下载失败')
+        }
+        const errorText = await response.text()
+        throw new Error(errorText || '下载失败')
+      }
+
       if (contentType && contentType.includes('application/json')) {
         const data = await response.json()
         return data

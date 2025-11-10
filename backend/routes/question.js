@@ -67,12 +67,14 @@ router.get('/search', optionalAuth, async (req, res, next) => {
              s.name as subject_name,
              g.name as grade_name,
              kp.name as knowledge_point_name,
+             qt.name as question_type_name,
              dl.name as difficulty_name,
              dl.level_value as difficulty_level
       FROM questions q
       LEFT JOIN subjects s ON q.subject_id = s.id
       LEFT JOIN grades g ON q.grade_id = g.id
       LEFT JOIN knowledge_points kp ON q.knowledge_point_id = kp.id
+      LEFT JOIN question_types qt ON q.question_type_id = qt.id
       LEFT JOIN difficulty_levels dl ON q.difficulty_id = dl.id
       ${baseWhere}${excludeCondition}
     `
@@ -365,7 +367,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
     
     // 按难度分组查询
     const easyResult = await pool.query(
-      `SELECT id FROM questions q
+      `SELECT q.id FROM questions q
        INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 1 ${excludeClause}
@@ -374,7 +376,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
     )
     
     const mediumResult = await pool.query(
-      `SELECT id FROM questions q
+      `SELECT q.id FROM questions q
        INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 2 ${excludeClause}
@@ -383,7 +385,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
     )
     
     const hardResult = await pool.query(
-      `SELECT id FROM questions q
+      `SELECT q.id FROM questions q
        INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 3 ${excludeClause}
@@ -392,7 +394,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
     )
     
     const expertResult = await pool.query(
-      `SELECT id FROM questions q
+      `SELECT q.id FROM questions q
        INNER JOIN difficulty_levels dl ON q.difficulty_id = dl.id
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 4 ${excludeClause}

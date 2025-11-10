@@ -35,6 +35,9 @@
             <div class="question-info">
               <el-tag>第 {{ currentIndex + 1 }} / {{ total }} 题</el-tag>
               <el-tag type="success">{{ currentQuestion.difficulty_name }}</el-tag>
+              <el-tag type="info">
+                {{ currentQuestion.question_type_name || '题型未设置' }}
+              </el-tag>
               <el-tag v-if="questionStore.isDownloaded(currentQuestion.id)" type="warning">已下载</el-tag>
             </div>
             <div class="question-actions">
@@ -355,12 +358,10 @@ const handleDownload = async () => {
 
 const performDownload = async () => {
   try {
-    const res = await questionApi.downloadQuestionGroup(questionStore.selectedQuestions)
+    const downloadResult = await questionApi.downloadQuestionGroup(questionStore.selectedQuestions)
     
-    // 检查是否是Blob（PDF文件）
-    if (res instanceof Blob) {
-      // 创建blob并下载
-      const url = window.URL.createObjectURL(res)
+    if (downloadResult instanceof Blob) {
+      const url = window.URL.createObjectURL(downloadResult)
       const link = document.createElement('a')
       link.href = url
       link.download = '试题组.pdf'
@@ -377,11 +378,11 @@ const performDownload = async () => {
         const downloadedRes = await questionApi.getDownloadedQuestions(route.query.knowledge_point_id)
         questionStore.setDownloadedQuestions(downloadedRes.question_ids || [])
       }
-    } else if (res && res.need_payment) {
+    } else if (downloadResult && downloadResult.need_payment) {
       // 需要支付
       paymentType.value = 'download'
-      currentOrderNo.value = res.order_no
-      paymentAmount.value = res.amount
+      currentOrderNo.value = downloadResult.order_no
+      paymentAmount.value = downloadResult.amount
       paymentDialogVisible.value = true
     } else {
       ElMessage.error('下载失败：未知错误')
