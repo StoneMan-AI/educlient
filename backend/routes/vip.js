@@ -558,5 +558,126 @@ router.post('/mock-pay', authenticate, async (req, res, next) => {
   }
 })
 
+// 查询用户已拥有的试题
+router.get('/owned-questions', authenticate, async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const {
+      grade_id,
+      subject_id,
+      knowledge_point_id,
+      question_type_id,
+      difficulty_id,
+      page = 1,
+      page_size = 15
+    } = req.query
+
+    if (!grade_id || !subject_id) {
+      return res.status(400).json({
+        success: false,
+        message: '请选择年级和学科'
+      })
+    }
+
+    const filters = []
+    const params = [userId]
+
+    const pushFilter = (condition, value) => {
+      params.push(value)
+      filters.push(condition.replace('$param', `$${params.length}`))
+    }
+
+    pushFilter('q.grade_id = $param', parseInt(grade_id))
+    pushFilter('q.subject_id = $param', parseInt(subject_id))
+
+    if (knowledge_point_id) {
+      pushFilter('q.knowledge_point_id = $param', parseInt(knowledge_point_id))
+    }
+
+    if (question_type_id) {
+      pushFilter('q.question_type_id = $param', parseInt(question_type_id))
+    }
+
+    if (difficulty_id) {
+      pushFilter('q.difficulty_id = $param', parseInt(difficulty_id))
+    }
+
+    const filterClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''
+
+    const baseCte = `
+      WITH owned_source AS (
+        SELECT question_id, COALESCE(downloaded_at, NOW()) AS owned_at
+        FROM user_downloaded_questions
+        WHERE user_id = $1
+        UNION ALL
+        SELECT question_id, COALESCE(viewed_at, NOW()) AS owned_at
+        FROM user_answer_views
+        WHERE user_id = $1
+      ),
+      owned AS (
+        SELECT question_id, MAX(owned_at) AS owned_at
+        FROM owned_source
+        GROUP BY question_id
+      )
+    `
+
+    const countQuery = `
+      ${baseCte}
+      SELECT COUNT(*) FROM owned
+      JOIN questions q ON q.id = owned.question_id
+      ${filterClause}
+    `
+
+    const countResult = await pool.query(countQuery, params)
+    const total = parseInt(countResult.rows[0]?.count || '0', 10)
+
+    const dataParams = [...params]
+    const limitIndex = dataParams.length + 1
+    const offsetIndex = dataParams.length + 2
+    const offset = (parseInt(page) - 1) * parseInt(page_size)
+    dataParams.push(parseInt(page_size), offset)
+
+    const dataQuery = `
+      ${baseCte}
+      SELECT 
+        q.id,
+        q.grade_id,
+        g.name AS grade_name,
+        q.subject_id,
+        s.name AS subject_name,
+        q.knowledge_point_id,
+        kp.name AS knowledge_point_name,
+        q.question_type_id,
+        qt.name AS question_type_name,
+        q.difficulty_id,
+        dl.name AS difficulty_name,
+        dl.level_value AS difficulty_level,
+        owned.owned_at
+      FROM owned
+      JOIN questions q ON q.id = owned.question_id
+      LEFT JOIN grades g ON g.id = q.grade_id
+      LEFT JOIN subjects s ON s.id = q.subject_id
+      LEFT JOIN knowledge_points kp ON kp.id = q.knowledge_point_id
+      LEFT JOIN question_types qt ON qt.id = q.question_type_id
+      LEFT JOIN difficulty_levels dl ON dl.id = q.difficulty_id
+      ${filterClause}
+      ORDER BY owned.owned_at DESC
+      LIMIT $${limitIndex} OFFSET $${offsetIndex}
+    `
+
+    const dataResult = await pool.query(dataQuery, dataParams)
+
+    res.json({
+      success: true,
+      total,
+      page: parseInt(page),
+      page_size: parseInt(page_size),
+      questions: dataResult.rows
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 export default router
 

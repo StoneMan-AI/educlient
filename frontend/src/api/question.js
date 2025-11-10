@@ -15,6 +15,16 @@ export const questionApi = {
   getKnowledgePoints(gradeId, subjectId) {
     return api.get(`/knowledge-points?grade_id=${gradeId}&subject_id=${subjectId}`)
   },
+
+  // 获取题型列表
+  getQuestionTypes() {
+    return api.get('/questions/types')
+  },
+
+  // 获取难度列表
+  getDifficultyLevels() {
+    return api.get('/questions/difficulties')
+  },
   
   // 查询试题
   searchQuestions(params) {

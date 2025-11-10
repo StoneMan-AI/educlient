@@ -24,6 +24,11 @@ export const vipApi = {
   // 模拟支付成功（测试）
   mockPay(orderNo) {
     return api.post('/vip/mock-pay', { order_no: orderNo })
+  },
+
+  // 获取用户已拥有试题
+  getOwnedQuestions(params) {
+    return api.get('/vip/owned-questions', { params })
   }
 }
 

@@ -6,6 +6,40 @@ import pool from '../config/database.js'
 
 const router = express.Router()
 
+// 获取题型列表
+router.get('/types', optionalAuth, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name 
+       FROM question_types 
+       ORDER BY sort_order NULLS LAST, id`
+    )
+    res.json({
+      success: true,
+      question_types: result.rows
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 获取难度列表
+router.get('/difficulties', optionalAuth, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, level_value 
+       FROM difficulty_levels 
+       ORDER BY level_value`
+    )
+    res.json({
+      success: true,
+      difficulty_levels: result.rows
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // 查询试题
 router.get('/search', optionalAuth, async (req, res, next) => {
   try {
