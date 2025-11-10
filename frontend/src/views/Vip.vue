@@ -845,5 +845,4 @@ watch(() => userStore.isVip, (val) => {
   text-align: right;
 }
 </style>
-</style>
 
