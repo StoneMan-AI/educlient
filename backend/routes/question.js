@@ -12,7 +12,7 @@ router.get('/types', optionalAuth, async (req, res, next) => {
     const result = await pool.query(
       `SELECT id, name 
        FROM question_types 
-       ORDER BY sort_order NULLS LAST, id`
+       ORDER BY id`
     )
     res.json({
       success: true,
