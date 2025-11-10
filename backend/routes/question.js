@@ -472,7 +472,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
 // 下载试题组
 router.post('/download-group', authenticate, async (req, res, next) => {
   try {
-    const { question_ids } = req.body
+    const { question_ids, order_no } = req.body
     const userId = req.user.id
     
     if (!question_ids || !Array.isArray(question_ids) || question_ids.length === 0) {
@@ -488,8 +488,7 @@ router.post('/download-group', authenticate, async (req, res, next) => {
         message: '最多只能下载15道题'
       })
     }
-    
-    // 检查VIP权限
+
     const vipResult = await pool.query(
       `SELECT vm.* FROM vip_memberships vm
        INNER JOIN questions q ON q.grade_id = ANY(vm.grade_ids)
@@ -503,36 +502,68 @@ router.post('/download-group', authenticate, async (req, res, next) => {
     
     const isVip = vipResult.rows.length > 0
     
-    // 非VIP用户需要支付
+    let order = null
     if (!isVip) {
-      const { getDownloadPrice } = await import('../utils/pricing.js')
-      const downloadAmount = await getDownloadPrice()
-      
-      const orderNo = `DOWNLOAD_${Date.now()}_${userId}`
-      await pool.query(
-        `INSERT INTO orders (user_id, order_no, type, amount, status)
-         VALUES ($1, $2, 'download', $3, 'pending')`,
-        [userId, orderNo, downloadAmount]
-      )
-      
-      return res.status(200).json({
-        success: true,
-        need_payment: true,
-        order_no: orderNo,
-        amount: downloadAmount
-      })
+      if (order_no) {
+        const orderResult = await pool.query(
+          `SELECT * FROM orders WHERE order_no = $1 AND user_id = $2 AND type = 'download'`,
+          [order_no, userId]
+        )
+        
+        if (orderResult.rows.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: '下载订单不存在，请重新发起支付'
+          })
+        }
+        
+        order = orderResult.rows[0]
+        
+        if (order.status !== 'paid') {
+          return res.status(400).json({
+            success: false,
+            message: '订单尚未支付，请完成支付后再下载'
+          })
+        }
+        
+        if (order.download_record_id) {
+          const { mapDownloadRecordToResponse, getDownloadRecordById } = await import('../utils/downloadManager.js')
+          const record = await getDownloadRecordById(order.download_record_id)
+          if (record) {
+            return res.json({
+              success: true,
+              need_payment: false,
+              download: mapDownloadRecordToResponse(record)
+            })
+          }
+        }
+      } else {
+        const { getDownloadPrice } = await import('../utils/pricing.js')
+        const downloadAmount = await getDownloadPrice()
+        
+        const newOrderNo = `DOWNLOAD_${Date.now()}_${userId}`
+        await pool.query(
+          `INSERT INTO orders (user_id, order_no, type, amount, status)
+           VALUES ($1, $2, 'download', $3, 'pending')`,
+          [userId, newOrderNo, downloadAmount]
+        )
+        
+        return res.status(200).json({
+          success: true,
+          need_payment: true,
+          order_no: newOrderNo,
+          amount: downloadAmount
+        })
+      }
     }
     
-    // VIP用户或已支付，生成PDF
     const { generatePDF, generateAnswerPDF } = await import('../utils/pdfGenerator.js')
+    const { createDownloadRecord, mapDownloadRecordToResponse } = await import('../utils/downloadManager.js')
     
-    // 生成试题组PDF
     const questionPdfBuffer = await generatePDF(question_ids, userId, false)
     
-    // VIP用户：记录已下载的题目并生成答案PDF
     let answerPdfBuffer = null
     if (isVip) {
-      // 获取知识点ID
       const questionResult = await pool.query(
         'SELECT DISTINCT knowledge_point_id FROM questions WHERE id = ANY($1::int[])',
         [question_ids]
@@ -541,7 +572,6 @@ router.post('/download-group', authenticate, async (req, res, next) => {
       const knowledgePointIds = questionResult.rows.map(r => r.knowledge_point_id).filter(Boolean)
       
       if (knowledgePointIds.length > 0) {
-        // 批量插入下载记录
         for (const qid of question_ids) {
           await pool.query(
             `INSERT INTO user_downloaded_questions (user_id, question_id, knowledge_point_id)
@@ -552,17 +582,29 @@ router.post('/download-group', authenticate, async (req, res, next) => {
         }
       }
       
-      // 生成答案PDF
       answerPdfBuffer = await generateAnswerPDF(question_ids)
     }
     
-    // 返回ZIP文件包含两个PDF（简化版本：返回试题组PDF，答案PDF需要单独下载）
-    // 实际项目中可以使用archiver创建ZIP
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', 'attachment; filename="试题组.pdf"')
-    res.send(questionPdfBuffer)
+    const downloadRecord = await createDownloadRecord({
+      userId,
+      questionIds: question_ids,
+      isVip,
+      questionPdfBuffer,
+      answerPdfBuffer
+    })
     
-    // TODO: 如果VIP用户需要同时下载答案，可以创建ZIP文件
+    if (!isVip && order) {
+      await pool.query(
+        `UPDATE orders SET download_record_id = $1, updated_at = NOW() WHERE id = $2`,
+        [downloadRecord.id, order.id]
+      )
+    }
+    
+    res.json({
+      success: true,
+      need_payment: false,
+      download: mapDownloadRecordToResponse(downloadRecord)
+    })
   } catch (error) {
     next(error)
   }

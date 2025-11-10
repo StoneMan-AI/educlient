@@ -105,6 +105,19 @@ CREATE TABLE reset_password_codes (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 下载记录表
+CREATE TABLE download_records (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    question_ids INTEGER[] NOT NULL,
+    is_vip BOOLEAN DEFAULT FALSE,
+    question_pdf_path TEXT NOT NULL,
+    answer_pdf_path TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    last_accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 创建索引
 CREATE INDEX idx_users_phone ON users(phone);
 CREATE INDEX idx_vip_memberships_user ON vip_memberships(user_id);
@@ -121,6 +134,8 @@ CREATE INDEX idx_guest_access_logs_ip ON guest_access_logs(ip_address);
 CREATE INDEX idx_user_answer_views_user ON user_answer_views(user_id);
 CREATE INDEX idx_reset_password_codes_phone ON reset_password_codes(phone);
 CREATE INDEX idx_reset_password_codes_expires ON reset_password_codes(expires_at);
+CREATE INDEX idx_download_records_user ON download_records(user_id);
+CREATE INDEX idx_download_records_expires ON download_records(expires_at);
 
 -- 创建更新时间触发器
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users 
@@ -131,6 +146,9 @@ CREATE TRIGGER update_vip_memberships_updated_at BEFORE UPDATE ON vip_membership
     
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS download_record_id INTEGER REFERENCES download_records(id);
 
 -- 创建视图：用户VIP状态视图
 CREATE VIEW user_vip_status AS

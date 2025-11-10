@@ -238,8 +238,10 @@ import { useUserStore } from '@/stores/user'
 import { questionApi } from '@/api/question'
 import { vipApi } from '@/api/vip'
 import PaymentDialog from '@/components/PaymentDialog.vue'
+import { useRouter } from 'vue-router'
 
 const userStore = useUserStore()
+const router = useRouter()
 
 const grades = ref([])
 const ownedSearch = reactive({
@@ -528,41 +530,47 @@ const handleOwnedViewAnswer = async (row) => {
   }
 }
 
-const handleOwnedDownload = async () => {
-  if (ownedSelected.value.length === 0) {
+const createDownloadRecord = async (orderNo) => {
+  if (pendingDownloadIds.value.length === 0) {
     ElMessage.warning('请先勾选试题')
     return
   }
 
-  pendingDownloadIds.value = ownedSelected.value.map(item => item.id)
   downloadLoading.value = true
-
   try {
-    const result = await questionApi.downloadQuestionGroup(pendingDownloadIds.value)
-    if (result instanceof Blob) {
-      const url = window.URL.createObjectURL(result)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = '已拥有试题.pdf'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-
-      ElMessage.success('下载成功')
-      pendingDownloadIds.value = []
-    } else if (result && result.need_payment) {
+    const result = await questionApi.downloadQuestionGroup(pendingDownloadIds.value, orderNo)
+    if (result && result.need_payment) {
       downloadOrderNo.value = result.order_no
       downloadAmount.value = result.amount
       downloadPaymentDialogVisible.value = true
+      ElMessage.info('请完成支付以生成下载文件')
+    } else if (result && result.success && result.download) {
+      ElMessage.success('下载文件已生成，请前往下载管理页下载')
+      pendingDownloadIds.value = []
+      ownedSelected.value = []
+      if (ownedTableRef.value) {
+        ownedTableRef.value.clearSelection()
+      }
+      downloadAmount.value = 0
+      router.push('/downloads')
     } else {
       ElMessage.error('下载失败：未知错误')
     }
   } catch (error) {
     ElMessage.error('下载失败：' + (error.response?.data?.message || error.message))
+    downloadAmount.value = 0
   } finally {
     downloadLoading.value = false
   }
+}
+
+const handleOwnedDownload = async () => {
+  if (ownedSelected.value.length === 0) {
+    ElMessage.warning('请先勾选试题')
+    return
+  }
+  pendingDownloadIds.value = ownedSelected.value.map(item => item.id)
+  await createDownloadRecord()
 }
 
 const handleDownloadPaid = async () => {
@@ -570,30 +578,9 @@ const handleDownloadPaid = async () => {
   if (pendingDownloadIds.value.length === 0) {
     return
   }
-
-  downloadLoading.value = true
-  try {
-    const result = await questionApi.downloadQuestionGroup(pendingDownloadIds.value)
-    if (result instanceof Blob) {
-      const url = window.URL.createObjectURL(result)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = '已拥有试题.pdf'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-
-      ElMessage.success('下载成功')
-      pendingDownloadIds.value = []
-    } else {
-      ElMessage.error('下载失败：未知错误')
-    }
-  } catch (error) {
-    ElMessage.error('下载失败：' + (error.response?.data?.message || error.message))
-  } finally {
-    downloadLoading.value = false
-  }
+  const orderNo = downloadOrderNo.value
+  downloadOrderNo.value = ''
+  await createDownloadRecord(orderNo)
 }
 
 const formatDateTime = (value) => {

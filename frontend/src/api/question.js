@@ -46,40 +46,13 @@ export const questionApi = {
     return api.post('/questions/generate-group', params)
   },
   
-  // 下载试题组（返回可能是JSON需要支付，或PDF文件）
-  async downloadQuestionGroup(questionIds) {
-    try {
-      // 先尝试作为JSON获取（检查是否需要支付）
-      const response = await fetch('/api/questions/download-group', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        },
-        body: JSON.stringify({ question_ids: questionIds })
-      })
-      
-      const contentType = response.headers.get('content-type')
-      if (!response.ok) {
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json()
-          throw new Error(errorData.message || '下载失败')
-        }
-        const errorText = await response.text()
-        throw new Error(errorText || '下载失败')
-      }
-
-      if (contentType && contentType.includes('application/json')) {
-        const data = await response.json()
-        return data
-      } else {
-        // 返回的是PDF文件
-        const blob = await response.blob()
-        return blob
-      }
-    } catch (error) {
-      throw error
+  // 下载试题组（生成下载记录）
+  downloadQuestionGroup(questionIds, orderNo) {
+    const payload = { question_ids: questionIds }
+    if (orderNo) {
+      payload.order_no = orderNo
     }
+    return api.post('/questions/download-group', payload)
   },
   
   // 获取用户已下载的题目

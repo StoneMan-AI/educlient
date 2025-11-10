@@ -428,8 +428,9 @@ const handlePaymentPaid = async () => {
       ElMessage.error('获取答案失败：' + (error.response?.data?.message || error.message))
     }
   } else if (paymentType.value === 'download') {
-    // 下载试题组
-    await performDownload()
+    const orderNo = currentOrderNo.value
+    currentOrderNo.value = ''
+    await performDownload(orderNo)
   }
 }
 
@@ -501,38 +502,38 @@ const handleDownload = async () => {
     return
   }
   
-  // 直接调用下载，performDownload会处理支付逻辑
   await performDownload()
 }
 
-const performDownload = async () => {
+const performDownload = async (orderNo) => {
+  if (questionStore.selectedCount === 0) {
+    ElMessage.warning('请先选择试题')
+    return
+  }
+  
   try {
-    const downloadResult = await questionApi.downloadQuestionGroup(questionStore.selectedQuestions)
+    const downloadResult = await questionApi.downloadQuestionGroup(questionStore.selectedQuestions, orderNo)
     
-    if (downloadResult instanceof Blob) {
-      const url = window.URL.createObjectURL(downloadResult)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = '试题组.pdf'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      
-      ElMessage.success('下载成功')
-      questionStore.clearSelection()
-      
-      // VIP用户：刷新已下载列表
-      if (userStore.isVip && route.query.knowledge_point_id) {
-        const downloadedRes = await questionApi.getDownloadedQuestions(route.query.knowledge_point_id)
-        questionStore.setDownloadedQuestions(downloadedRes.question_ids || [])
-      }
-    } else if (downloadResult && downloadResult.need_payment) {
-      // 需要支付
+    if (downloadResult && downloadResult.need_payment) {
       paymentType.value = 'download'
       currentOrderNo.value = downloadResult.order_no
       paymentAmount.value = downloadResult.amount
       paymentDialogVisible.value = true
+      ElMessage.info('请完成支付以生成下载文件')
+    } else if (downloadResult && downloadResult.success && downloadResult.download) {
+      ElMessage.success('下载文件已生成，请前往下载管理页查看')
+      questionStore.clearSelection()
+      currentOrderNo.value = ''
+      paymentAmount.value = 0
+      if (userStore.isVip && route.query.knowledge_point_id) {
+        try {
+          const downloadedRes = await questionApi.getDownloadedQuestions(route.query.knowledge_point_id)
+          questionStore.setDownloadedQuestions(downloadedRes.question_ids || [])
+        } catch (error) {
+          console.error('刷新已下载题目失败', error)
+        }
+      }
+      router.push('/downloads')
     } else {
       ElMessage.error('下载失败：未知错误')
     }
