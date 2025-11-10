@@ -140,6 +140,7 @@
             </el-form>
 
             <div class="owned-actions">
+              <span class="owned-count">已选：{{ ownedSelected.length }}</span>
               <el-button
                 type="success"
                 :disabled="ownedSelected.length === 0 || downloadLoading"
@@ -444,18 +445,51 @@ const handleOwnedPageChange = (page) => {
 }
 
 const handleOwnedSelect = (selection, row) => {
-  if (selection.length > 15) {
-    ElMessage.warning('最多选择15道试题')
-    if (ownedTableRef.value) {
-      ownedTableRef.value.toggleRowSelection(row, false)
+  const currentlySelectedIds = new Set(ownedSelected.value.map(item => item.id))
+  const rowSelected = selection.some(item => item.id === row.id)
+
+  if (rowSelected) {
+    if (!currentlySelectedIds.has(row.id)) {
+      const rowData = ownedQuestions.value.find(item => item.id === row.id)
+      if (rowData) {
+        const newSelection = [...ownedSelected.value, rowData]
+        if (newSelection.length > 15) {
+          ElMessage.warning('最多选择15道试题')
+          if (ownedTableRef.value) {
+            nextTick(() => {
+              ownedTableRef.value.toggleRowSelection(row, false)
+            })
+          }
+          return
+        }
+        ownedSelected.value = newSelection
+      }
     }
-    return
+  } else if (currentlySelectedIds.has(row.id)) {
+    ownedSelected.value = ownedSelected.value.filter(item => item.id !== row.id)
   }
-  ownedSelected.value = selection
 }
 
 const handleOwnedSelectionChange = (selection) => {
-  ownedSelected.value = selection
+  const maxSelection = 15
+  const currentPageIds = new Set(ownedQuestions.value.map(item => item.id))
+  const preservedSelections = ownedSelected.value.filter(item => !currentPageIds.has(item.id))
+  const merged = [...preservedSelections, ...selection]
+  if (merged.length > maxSelection) {
+    ElMessage.warning('最多选择15道试题')
+    const allowable = merged.slice(0, maxSelection)
+    ownedSelected.value = allowable
+    if (ownedTableRef.value) {
+      nextTick(() => {
+        ownedQuestions.value.forEach(row => {
+          const shouldSelect = allowable.some(item => item.id === row.id)
+          ownedTableRef.value.toggleRowSelection(row, shouldSelect)
+        })
+      })
+    }
+  } else {
+    ownedSelected.value = merged
+  }
 }
 
 const handleOwnedViewQuestion = async (row) => {
@@ -645,6 +679,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: flex-end;
   min-width: 200px;
+  gap: 12px;
+}
+
+.owned-count {
+  font-size: 14px;
+  color: #409eff;
+  font-weight: bold;
 }
 
 .owned-pagination {

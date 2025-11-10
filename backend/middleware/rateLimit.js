@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit'
 export const guestQuestionLimit = rateLimit({
   windowMs: 3 * 60 * 1000, // 3分钟
   max: 3, // 最多3次
+  skip: (req) => Boolean(req.user),
   keyGenerator: (req) => {
     // 使用IP地址作为限流key
     return req.ip || req.connection.remoteAddress
