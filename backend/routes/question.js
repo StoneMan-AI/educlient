@@ -335,21 +335,17 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
         const hasUnusedPayment = order.paid_at && (!lastViewedAt || new Date(order.paid_at) > new Date(lastViewedAt))
         
         if (hasUnusedPayment) {
+          await pool.query(
+            `INSERT INTO user_answer_views (user_id, question_id, viewed_at)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (user_id, question_id) DO UPDATE
+               SET viewed_at = NOW()`,
+            [userId, questionId]
+          )
           const questionResult = await pool.query(
             'SELECT answer_image_url FROM questions WHERE id = $1',
             [questionId]
           )
-          
-          await pool.query(
-            `INSERT INTO user_answer_views (user_id, question_id, is_first_view, viewed_at)
-             VALUES ($1, $2, FALSE, NOW())
-             ON CONFLICT (user_id, question_id) DO UPDATE 
-               SET is_first_view = FALSE,
-                   viewed_at = NOW()`,
-            [userId, questionId]
-          )
-          
-          isFirstView = false
           
           return res.json({
             success: true,
