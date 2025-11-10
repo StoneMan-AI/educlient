@@ -565,7 +565,6 @@ router.get('/owned-questions', authenticate, async (req, res, next) => {
     const {
       grade_id,
       subject_id,
-      difficulty_id,
       page = 1,
       page_size = 15
     } = req.query
@@ -626,6 +625,34 @@ router.get('/owned-questions', authenticate, async (req, res, next) => {
     }
     questionTypeIds = Array.from(new Set(questionTypeIds))
 
+    let difficultyIds = []
+    const rawDifficulty = req.query.difficulty_ids
+    if (Array.isArray(rawDifficulty)) {
+      rawDifficulty.forEach(item => {
+        if (typeof item === 'string' && item.includes(',')) {
+          item.split(',').forEach(part => {
+            const num = parseInt(part, 10)
+            if (!Number.isNaN(num)) {
+              difficultyIds.push(num)
+            }
+          })
+        } else {
+          const num = parseInt(item, 10)
+          if (!Number.isNaN(num)) {
+            difficultyIds.push(num)
+          }
+        }
+      })
+    } else if (typeof rawDifficulty === 'string' && rawDifficulty.trim() !== '') {
+      rawDifficulty.split(',').forEach(part => {
+        const num = parseInt(part, 10)
+        if (!Number.isNaN(num)) {
+          difficultyIds.push(num)
+        }
+      })
+    }
+    difficultyIds = Array.from(new Set(difficultyIds))
+
     const gradeId = parseInt(grade_id, 10)
     const subjectId = parseInt(subject_id, 10)
 
@@ -659,8 +686,10 @@ router.get('/owned-questions', authenticate, async (req, res, next) => {
       filters.push(`q.question_type_id = ANY(${addParam(questionTypeIds)}::int[])`)
     }
 
-    if (difficulty_id) {
-      filters.push(`q.difficulty_id = ${addParam(parseInt(difficulty_id, 10))}`)
+    if (difficultyIds.length === 1) {
+      filters.push(`q.difficulty_id = ${addParam(difficultyIds[0])}`)
+    } else if (difficultyIds.length > 1) {
+      filters.push(`q.difficulty_id = ANY(${addParam(difficultyIds)}::int[])`)
     }
 
     const filterClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''

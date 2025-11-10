@@ -116,7 +116,10 @@
 
               <el-form-item label="难度">
                 <el-select
-                  v-model="ownedSearch.difficulty_id"
+                  v-model="ownedSearch.difficulty_ids"
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
                   placeholder="选择难度"
                   clearable
                   style="width: 160px;"
@@ -211,7 +214,7 @@ const ownedSearch = reactive({
   subject_id: null,
   knowledge_point_ids: [],
   question_type_ids: [],
-  difficulty_id: null
+  difficulty_ids: []
 })
 const ownedSubjects = ref([])
 const ownedKnowledgePoints = ref([])
@@ -301,6 +304,7 @@ const handleOwnedGradeChange = async (value) => {
   ownedSearch.subject_id = null
   ownedSearch.knowledge_point_ids = []
   ownedSearch.question_type_ids = []
+  ownedSearch.difficulty_ids = []
   ownedSubjects.value = []
   ownedKnowledgePoints.value = []
   ownedSelected.value = []
@@ -315,6 +319,7 @@ const handleOwnedGradeChange = async (value) => {
 const handleOwnedSubjectChange = async (value) => {
   ownedSearch.knowledge_point_ids = []
   ownedSearch.question_type_ids = []
+  ownedSearch.difficulty_ids = []
   ownedKnowledgePoints.value = []
   ownedSelected.value = []
   if (ownedTableRef.value) {
@@ -339,7 +344,7 @@ const handleOwnedReset = () => {
   ownedSearch.subject_id = null
   ownedSearch.knowledge_point_ids = []
   ownedSearch.question_type_ids = []
-  ownedSearch.difficulty_id = null
+  ownedSearch.difficulty_ids = []
   ownedSubjects.value = []
   ownedKnowledgePoints.value = []
   ownedQuestions.value = []
@@ -369,7 +374,9 @@ const fetchOwnedQuestions = async () => {
     if (ownedSearch.question_type_ids && ownedSearch.question_type_ids.length > 0) {
       params.question_type_ids = ownedSearch.question_type_ids.map(id => Number(id))
     }
-    if (ownedSearch.difficulty_id) params.difficulty_id = ownedSearch.difficulty_id
+    if (ownedSearch.difficulty_ids && ownedSearch.difficulty_ids.length > 0) {
+      params.difficulty_ids = ownedSearch.difficulty_ids.map(id => Number(id))
+    }
 
     const res = await vipApi.getOwnedQuestions(params)
     if (res.success) {
