@@ -304,16 +304,22 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
     
     // 非VIP用户，检查是否已查看过答案
     const viewResult = await pool.query(
-      'SELECT is_first_view, viewed_at FROM user_answer_views WHERE user_id = $1 AND question_id = $2',
+      'SELECT viewed_at FROM user_answer_views WHERE user_id = $1 AND question_id = $2',
       [userId, questionId]
     )
     
-    let isFirstView = true
     let lastViewedAt = null
     if (viewResult.rows.length > 0) {
-      isFirstView = viewResult.rows[0].is_first_view
       lastViewedAt = viewResult.rows[0].viewed_at
     }
+    
+    const paidHistoryResult = await pool.query(
+      `SELECT 1 FROM orders 
+       WHERE user_id = $1 AND type = 'view_answer' AND status = 'paid'
+       LIMIT 1`,
+      [userId]
+    )
+    const isFirstPurchase = paidHistoryResult.rows.length === 0
     
     // 检查是否有未支付的订单
     const orderResult = await pool.query(
@@ -357,7 +363,7 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
     // 需要创建支付订单
     // 从数据库获取价格
     const { getAnswerPrice } = await import('../utils/pricing.js')
-    const amount = await getAnswerPrice(isFirstView)
+    const amount = await getAnswerPrice(isFirstPurchase)
     const orderNo = `ANSWER_${Date.now()}_${userId}_${questionId}`
     
     await pool.query(
