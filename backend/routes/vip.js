@@ -565,14 +565,44 @@ router.get('/owned-questions', authenticate, async (req, res, next) => {
     const {
       grade_id,
       subject_id,
-      knowledge_point_id,
       question_type_id,
       difficulty_id,
       page = 1,
       page_size = 15
     } = req.query
 
-    if (!grade_id || !subject_id) {
+    let knowledgePointIds = []
+    const rawKnowledgePoints = req.query.knowledge_point_ids
+    if (Array.isArray(rawKnowledgePoints)) {
+      rawKnowledgePoints.forEach(item => {
+        if (typeof item === 'string' && item.includes(',')) {
+          item.split(',').forEach(part => {
+            const num = parseInt(part, 10)
+            if (!Number.isNaN(num)) {
+              knowledgePointIds.push(num)
+            }
+          })
+        } else {
+          const num = parseInt(item, 10)
+          if (!Number.isNaN(num)) {
+            knowledgePointIds.push(num)
+          }
+        }
+      })
+    } else if (typeof rawKnowledgePoints === 'string' && rawKnowledgePoints.trim() !== '') {
+      rawKnowledgePoints.split(',').forEach(part => {
+        const num = parseInt(part, 10)
+        if (!Number.isNaN(num)) {
+          knowledgePointIds.push(num)
+        }
+      })
+    }
+    knowledgePointIds = Array.from(new Set(knowledgePointIds))
+
+    const gradeId = parseInt(grade_id, 10)
+    const subjectId = parseInt(subject_id, 10)
+
+    if (!grade_id || !subject_id || Number.isNaN(gradeId) || Number.isNaN(subjectId)) {
       return res.status(400).json({
         success: false,
         message: '请选择年级和学科'
@@ -582,24 +612,26 @@ router.get('/owned-questions', authenticate, async (req, res, next) => {
     const filters = []
     const params = [userId]
 
-    const pushFilter = (condition, value) => {
+    const addParam = (value) => {
       params.push(value)
-      filters.push(condition.replace('$param', `$${params.length}`))
+      return `$${params.length}`
     }
 
-    pushFilter('q.grade_id = $param', parseInt(grade_id))
-    pushFilter('q.subject_id = $param', parseInt(subject_id))
+    filters.push(`q.grade_id = ${addParam(gradeId)}`)
+    filters.push(`q.subject_id = ${addParam(subjectId)}`)
 
-    if (knowledge_point_id) {
-      pushFilter('q.knowledge_point_id = $param', parseInt(knowledge_point_id))
+    if (knowledgePointIds.length === 1) {
+      filters.push(`q.knowledge_point_id = ${addParam(knowledgePointIds[0])}`)
+    } else if (knowledgePointIds.length > 1) {
+      filters.push(`q.knowledge_point_id = ANY(${addParam(knowledgePointIds)}::int[])`)
     }
 
     if (question_type_id) {
-      pushFilter('q.question_type_id = $param', parseInt(question_type_id))
+      filters.push(`q.question_type_id = ${addParam(parseInt(question_type_id, 10))}`)
     }
 
     if (difficulty_id) {
-      pushFilter('q.difficulty_id = $param', parseInt(difficulty_id))
+      filters.push(`q.difficulty_id = ${addParam(parseInt(difficulty_id, 10))}`)
     }
 
     const filterClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : ''

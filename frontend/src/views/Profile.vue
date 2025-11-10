@@ -76,7 +76,10 @@
 
               <el-form-item label="知识点">
                 <el-select
-                  v-model="ownedSearch.knowledge_point_id"
+                  v-model="ownedSearch.knowledge_point_ids"
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
                   placeholder="选择知识点"
                   clearable
                   :disabled="!ownedSearch.subject_id"
@@ -203,7 +206,7 @@ const grades = ref([])
 const ownedSearch = reactive({
   grade_id: null,
   subject_id: null,
-  knowledge_point_id: null,
+  knowledge_point_ids: [],
   question_type_id: null,
   difficulty_id: null
 })
@@ -236,18 +239,30 @@ const loadGrades = async () => {
 const loadQuestionTypes = async () => {
   try {
     const res = await questionApi.getQuestionTypes()
-    questionTypes.value = res.question_types || []
+    if (res && res.success) {
+      questionTypes.value = res.question_types || []
+    } else {
+      questionTypes.value = res?.question_types || []
+    }
   } catch (error) {
+    questionTypes.value = []
     console.error('加载题型失败', error)
+    ElMessage.error('加载题型失败')
   }
 }
 
 const loadDifficultyLevels = async () => {
   try {
     const res = await questionApi.getDifficultyLevels()
-    difficultyLevels.value = res.difficulty_levels || []
+    if (res && res.success) {
+      difficultyLevels.value = res.difficulty_levels || []
+    } else {
+      difficultyLevels.value = res?.difficulty_levels || []
+    }
   } catch (error) {
+    difficultyLevels.value = []
     console.error('加载难度失败', error)
+    ElMessage.error('加载难度失败')
   }
 }
 
@@ -272,6 +287,8 @@ const loadOwnedKnowledgePoints = async (gradeId, subjectId) => {
   try {
     const res = await questionApi.getKnowledgePoints(gradeId, subjectId)
     ownedKnowledgePoints.value = res.knowledge_points || []
+    const availableIds = new Set(ownedKnowledgePoints.value.map(item => item.id))
+    ownedSearch.knowledge_point_ids = ownedSearch.knowledge_point_ids.filter(id => availableIds.has(id))
   } catch (error) {
     console.error('加载知识点失败', error)
   }
@@ -279,7 +296,7 @@ const loadOwnedKnowledgePoints = async (gradeId, subjectId) => {
 
 const handleOwnedGradeChange = async (value) => {
   ownedSearch.subject_id = null
-  ownedSearch.knowledge_point_id = null
+  ownedSearch.knowledge_point_ids = []
   ownedSubjects.value = []
   ownedKnowledgePoints.value = []
   ownedSelected.value = []
@@ -292,7 +309,7 @@ const handleOwnedGradeChange = async (value) => {
 }
 
 const handleOwnedSubjectChange = async (value) => {
-  ownedSearch.knowledge_point_id = null
+  ownedSearch.knowledge_point_ids = []
   ownedKnowledgePoints.value = []
   ownedSelected.value = []
   if (ownedTableRef.value) {
@@ -315,7 +332,7 @@ const handleOwnedSearch = () => {
 const handleOwnedReset = () => {
   ownedSearch.grade_id = null
   ownedSearch.subject_id = null
-  ownedSearch.knowledge_point_id = null
+  ownedSearch.knowledge_point_ids = []
   ownedSearch.question_type_id = null
   ownedSearch.difficulty_id = null
   ownedSubjects.value = []
@@ -341,7 +358,9 @@ const fetchOwnedQuestions = async () => {
       page: ownedPage.value,
       page_size: ownedPageSize.value
     }
-    if (ownedSearch.knowledge_point_id) params.knowledge_point_id = ownedSearch.knowledge_point_id
+    if (ownedSearch.knowledge_point_ids && ownedSearch.knowledge_point_ids.length > 0) {
+      params.knowledge_point_ids = ownedSearch.knowledge_point_ids.map(id => Number(id))
+    }
     if (ownedSearch.question_type_id) params.question_type_id = ownedSearch.question_type_id
     if (ownedSearch.difficulty_id) params.difficulty_id = ownedSearch.difficulty_id
 
