@@ -121,7 +121,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
@@ -157,6 +157,110 @@ const selectedQuestionsDetails = computed(() => {
     .filter(Boolean)
 })
 
+const GUEST_LIMIT_KEY = 'guest_question_limit_state'
+const guestViewedIds = ref([])
+const guestBlockedUntil = ref(0)
+
+const loadGuestLimitState = () => {
+  try {
+    const raw = localStorage.getItem(GUEST_LIMIT_KEY)
+    if (raw) {
+      const data = JSON.parse(raw)
+      guestViewedIds.value = Array.isArray(data.viewedIds) ? data.viewedIds : []
+      guestBlockedUntil.value = typeof data.blockedUntil === 'number' ? data.blockedUntil : 0
+    }
+  } catch (error) {
+    console.warn('加载访客浏览限制状态失败', error)
+    guestViewedIds.value = []
+    guestBlockedUntil.value = 0
+  }
+}
+
+const saveGuestLimitState = () => {
+  const data = {
+    viewedIds: guestViewedIds.value.slice(0, 3),
+    blockedUntil: guestBlockedUntil.value
+  }
+  localStorage.setItem(GUEST_LIMIT_KEY, JSON.stringify(data))
+}
+
+const resetGuestLimitIfExpired = () => {
+  if (guestBlockedUntil.value && Date.now() >= guestBlockedUntil.value) {
+    guestBlockedUntil.value = 0
+    guestViewedIds.value = []
+    saveGuestLimitState()
+  }
+}
+
+const clearGuestLimitState = () => {
+  guestBlockedUntil.value = 0
+  guestViewedIds.value = []
+  localStorage.removeItem(GUEST_LIMIT_KEY)
+}
+
+const recordGuestView = (questionId) => {
+  if (userStore.isLoggedIn) {
+    clearGuestLimitState()
+    return
+  }
+  
+  resetGuestLimitIfExpired()
+  
+  if (!questionId) return
+  
+  if (!guestViewedIds.value.includes(questionId)) {
+    if (guestViewedIds.value.length < 3) {
+      guestViewedIds.value.push(questionId)
+    }
+    saveGuestLimitState()
+  }
+}
+
+const showGuestLimitDialog = async (isBlocked) => {
+  const message = isBlocked
+    ? '未登录用户需要等待3分钟后才能继续浏览试题。\n请先登录或注册账号。'
+    : '未登录用户最多可连续浏览3道试题。\n请登录或注册账号以继续浏览更多试题。'
+  
+  try {
+    await ElMessageBox.confirm(message.replace(/\n/g, '<br/>'), '提示', {
+      confirmButtonText: '前往登录',
+      cancelButtonText: '稍后再说',
+      dangerouslyUseHTMLString: true
+    })
+    router.push('/login')
+  } catch (error) {
+    // 用户取消，无需处理
+  }
+}
+
+const checkGuestLimitBeforeNext = (nextQuestionId) => {
+  if (userStore.isLoggedIn) {
+    return true
+  }
+  
+  resetGuestLimitIfExpired()
+  
+  const now = Date.now()
+  if (guestBlockedUntil.value && now < guestBlockedUntil.value) {
+    showGuestLimitDialog(true)
+    return false
+  }
+  
+  // 如果即将查看的是已浏览的题目，允许跳转
+  if (guestViewedIds.value.includes(nextQuestionId)) {
+    return true
+  }
+  
+  if (guestViewedIds.value.length >= 3) {
+    guestBlockedUntil.value = now + 3 * 60 * 1000
+    saveGuestLimitState()
+    showGuestLimitDialog(false)
+    return false
+  }
+  
+  return true
+}
+
 const loadQuestions = async () => {
   try {
     const params = {
@@ -177,6 +281,7 @@ const loadQuestions = async () => {
       }
       currentQuestion.value = questions.value[currentIndex.value]
       questionStore.setCurrentQuestion(currentQuestion.value)
+      recordGuestView(currentQuestion.value?.id)
     } else {
       currentIndex.value = 0
       currentQuestion.value = null
@@ -207,14 +312,20 @@ const handlePrev = () => {
     currentIndex.value--
     currentQuestion.value = questions.value[currentIndex.value]
     questionStore.setCurrentQuestion(currentQuestion.value)
+    recordGuestView(currentQuestion.value?.id)
   }
 }
 
 const handleNext = () => {
   if (currentIndex.value < questions.value.length - 1) {
+    const nextQuestion = questions.value[currentIndex.value + 1]
+    if (!checkGuestLimitBeforeNext(nextQuestion?.id)) {
+      return
+    }
     currentIndex.value++
     currentQuestion.value = questions.value[currentIndex.value]
     questionStore.setCurrentQuestion(currentQuestion.value)
+    recordGuestView(currentQuestion.value?.id)
   }
 }
 
@@ -431,7 +542,17 @@ const performDownload = async () => {
 }
 
 onMounted(() => {
+  loadGuestLimitState()
+  if (userStore.isLoggedIn) {
+    clearGuestLimitState()
+  }
   loadQuestions()
+})
+
+watch(() => userStore.isLoggedIn, (val) => {
+  if (val) {
+    clearGuestLimitState()
+  }
 })
 </script>
 
