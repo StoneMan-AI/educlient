@@ -70,9 +70,9 @@ async function completeOrderPayment(order, { transactionId = null, isMock = fals
 
   if (order.type === 'view_answer' && order.question_id) {
     await pool.query(
-      `INSERT INTO user_answer_views (user_id, question_id, is_first_view)
-       VALUES ($1, $2, FALSE)
-       ON CONFLICT (user_id, question_id) DO UPDATE SET is_first_view = FALSE`,
+      `INSERT INTO user_answer_views (user_id, question_id, is_first_view, viewed_at)
+       VALUES ($1, $2, TRUE, NULL)
+       ON CONFLICT (user_id, question_id) DO NOTHING`,
       [order.user_id, order.question_id]
     )
   }

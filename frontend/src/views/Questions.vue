@@ -30,47 +30,75 @@
         </div>
       </el-header>
       <el-main>
-        <el-card v-if="currentQuestion" class="question-card">
-          <div class="question-header">
-            <div class="question-info">
-              <el-tag>第 {{ currentIndex + 1 }} / {{ total }} 题</el-tag>
-              <el-tag type="success">{{ currentQuestion.difficulty_name }}</el-tag>
-              <el-tag type="info">
-                {{ currentQuestion.question_type_name || '题型未设置' }}
-              </el-tag>
-              <el-tag v-if="questionStore.isDownloaded(currentQuestion.id)" type="warning">已下载</el-tag>
-            </div>
-            <div class="question-actions">
-              <el-checkbox
-                v-model="isSelected"
-                @change="handleToggleSelect"
-                :disabled="!questionStore.canSelectMore && !isSelected"
-              >
-                选中此题
-              </el-checkbox>
-              <el-button @click="handleViewAnswer">查看答案</el-button>
-            </div>
+        <div class="question-layout">
+          <div class="question-main">
+            <el-card v-if="currentQuestion" class="question-card">
+              <div class="question-header">
+                <div class="question-info">
+                  <el-tag>第 {{ currentIndex + 1 }} / {{ total }} 题</el-tag>
+                  <el-tag type="success">{{ currentQuestion.difficulty_name }}</el-tag>
+                  <el-tag type="info">
+                    {{ currentQuestion.question_type_name || '题型未设置' }}
+                  </el-tag>
+                  <el-tag v-if="questionStore.isDownloaded(currentQuestion.id)" type="warning">已下载</el-tag>
+                </div>
+                <div class="question-actions">
+                  <el-checkbox
+                    v-model="isSelected"
+                    @change="handleToggleSelect"
+                    :disabled="!questionStore.canSelectMore && !isSelected"
+                  >
+                    选中此题
+                  </el-checkbox>
+                  <el-button @click="handleViewAnswer">查看答案</el-button>
+                </div>
+              </div>
+              
+              <div class="question-content">
+                <img 
+                  v-if="currentQuestion.question_image_url" 
+                  :src="currentQuestion.question_image_url" 
+                  alt="题目"
+                  class="question-image"
+                />
+                <div v-else class="no-image">暂无题目图片</div>
+              </div>
+              
+              <div class="question-footer">
+                <el-button-group>
+                  <el-button @click="handlePrev" :disabled="currentIndex === 0">上一题</el-button>
+                  <el-button @click="handleNext" :disabled="currentIndex >= questions.length - 1">下一题</el-button>
+                </el-button-group>
+              </div>
+            </el-card>
+            
+            <el-empty v-else description="暂无试题数据" />
           </div>
           
-          <div class="question-content">
-            <img 
-              v-if="currentQuestion.question_image_url" 
-              :src="currentQuestion.question_image_url" 
-              alt="题目"
-              class="question-image"
+          <el-card class="selected-sidebar">
+            <div class="sidebar-header">
+              <span>已选试题</span>
+              <span class="sidebar-count">{{ questionStore.selectedCount }}/15</span>
+            </div>
+            <el-empty
+              v-if="selectedQuestionsDetails.length === 0"
+              description="暂未选择试题"
             />
-            <div v-else class="no-image">暂无题目图片</div>
-          </div>
-          
-          <div class="question-footer">
-            <el-button-group>
-              <el-button @click="handlePrev" :disabled="currentIndex === 0">上一题</el-button>
-              <el-button @click="handleNext" :disabled="currentIndex >= questions.length - 1">下一题</el-button>
-            </el-button-group>
-          </div>
-        </el-card>
-        
-        <el-empty v-else description="暂无试题数据" />
+            <el-scrollbar v-else class="selected-scroll">
+              <div
+                v-for="item in selectedQuestionsDetails"
+                :key="item.id"
+                class="selected-item"
+              >
+                <div class="selected-info">
+                  <el-tag type="success" size="small">{{ item.difficulty_name || '未知难度' }}</el-tag>
+                  <el-tag type="info" size="small">{{ item.question_type_name || '题型未设置' }}</el-tag>
+                </div>
+                <el-button type="text" size="small" @click="handleRemoveSelected(item.id)">取消</el-button>
+              </div>
+            </el-scrollbar>
+          </el-card>
+        </div>
       </el-main>
     </el-container>
     
@@ -121,6 +149,12 @@ const sortBy = ref('created_at_desc') // 默认按最新上传时间排序
 
 const isSelected = computed(() => {
   return currentQuestion.value ? questionStore.isSelected(currentQuestion.value.id) : false
+})
+
+const selectedQuestionsDetails = computed(() => {
+  return questionStore.selectedQuestions
+    .map(id => questions.value.find(q => q.id === id))
+    .filter(Boolean)
 })
 
 const loadQuestions = async () => {
@@ -192,6 +226,10 @@ const handleToggleSelect = (checked) => {
     }
     questionStore.toggleSelect(currentQuestion.value.id)
   }
+}
+
+const handleRemoveSelected = (questionId) => {
+  questionStore.toggleSelect(questionId)
 }
 
 const handleViewAnswer = async () => {
@@ -424,6 +462,57 @@ onMounted(() => {
 .question-card {
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.question-layout {
+  display: flex;
+  gap: 20px;
+}
+
+.question-main {
+  flex: 1;
+}
+
+.selected-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 640px;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.sidebar-count {
+  color: #409eff;
+}
+
+.selected-scroll {
+  max-height: 520px;
+}
+
+.selected-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.selected-item:last-child {
+  border-bottom: none;
+}
+
+.selected-info {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .question-header {

@@ -270,18 +270,20 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
     
     // 非VIP用户，检查是否已查看过答案
     const viewResult = await pool.query(
-      'SELECT is_first_view FROM user_answer_views WHERE user_id = $1 AND question_id = $2',
+      'SELECT is_first_view, viewed_at FROM user_answer_views WHERE user_id = $1 AND question_id = $2',
       [userId, questionId]
     )
     
     let isFirstView = true
+    let lastViewedAt = null
     if (viewResult.rows.length > 0) {
       isFirstView = viewResult.rows[0].is_first_view
+      lastViewedAt = viewResult.rows[0].viewed_at
     }
     
     // 检查是否有未支付的订单
     const orderResult = await pool.query(
-      `SELECT id, order_no, status FROM orders 
+      `SELECT id, order_no, status, paid_at FROM orders 
        WHERE user_id = $1 AND question_id = $2 AND type = 'view_answer' 
        ORDER BY created_at DESC LIMIT 1`,
       [userId, questionId]
@@ -290,17 +292,31 @@ router.post('/:id/view-answer', authenticate, async (req, res, next) => {
     if (orderResult.rows.length > 0) {
       const order = orderResult.rows[0]
       if (order.status === 'paid') {
-        // 已支付，返回答案
-        const questionResult = await pool.query(
-          'SELECT answer_image_url FROM questions WHERE id = $1',
-          [questionId]
-        )
+        const hasUnusedPayment = order.paid_at && (!lastViewedAt || new Date(order.paid_at) > new Date(lastViewedAt))
         
-        return res.json({
-          success: true,
-          need_payment: false,
-          answer_url: questionResult.rows[0]?.answer_image_url
-        })
+        if (hasUnusedPayment) {
+          const questionResult = await pool.query(
+            'SELECT answer_image_url FROM questions WHERE id = $1',
+            [questionId]
+          )
+          
+          await pool.query(
+            `INSERT INTO user_answer_views (user_id, question_id, is_first_view, viewed_at)
+             VALUES ($1, $2, FALSE, NOW())
+             ON CONFLICT (user_id, question_id) DO UPDATE 
+               SET is_first_view = FALSE,
+                   viewed_at = NOW()`,
+            [userId, questionId]
+          )
+          
+          isFirstView = false
+          
+          return res.json({
+            success: true,
+            need_payment: false,
+            answer_url: questionResult.rows[0]?.answer_image_url
+          })
+        }
       }
     }
     
@@ -470,26 +486,14 @@ router.post('/download-group', authenticate, async (req, res, next) => {
     
     // 非VIP用户需要支付
     if (!isVip) {
-      // 检查是否有未支付的订单
-      const orderResult = await pool.query(
-        `SELECT id, order_no, status FROM orders 
-         WHERE user_id = $1 AND type = 'download' 
-           AND question_ids = $2
-         ORDER BY created_at DESC LIMIT 1`,
-        [userId, question_ids]
-      )
-      
-      if (orderResult.rows.length === 0 || orderResult.rows[0].status !== 'paid') {
-      // 创建支付订单
-      // 从数据库获取价格
       const { getDownloadPrice } = await import('../utils/pricing.js')
       const downloadAmount = await getDownloadPrice()
       
       const orderNo = `DOWNLOAD_${Date.now()}_${userId}`
       await pool.query(
-        `INSERT INTO orders (user_id, order_no, type, amount, question_ids, status)
-         VALUES ($1, $2, 'download', $4, $3::int[], 'pending')`,
-        [userId, orderNo, question_ids, downloadAmount]
+        `INSERT INTO orders (user_id, order_no, type, amount, status)
+         VALUES ($1, $2, 'download', $3, 'pending')`,
+        [userId, orderNo, downloadAmount]
       )
       
       return res.status(200).json({
@@ -498,7 +502,6 @@ router.post('/download-group', authenticate, async (req, res, next) => {
         order_no: orderNo,
         amount: downloadAmount
       })
-      }
     }
     
     // VIP用户或已支付，生成PDF
