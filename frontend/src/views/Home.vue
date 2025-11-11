@@ -10,10 +10,55 @@
       <el-main>
         <div class="home-content">
           <el-row :gutter="20">
-            <el-col :span="16">
+            <el-col :span="24">
               <el-card class="welcome-card">
-                <h2>欢迎使用试题图片组合系统</h2>
-                <p>通过年级、学科、知识点查询试题，组合生成专项练习题组</p>
+                <template #header>
+                  <div class="card-header">通过年级、学科、知识点查询试题，组合生成专项练习题组</div>
+                </template>
+                <el-form :model="searchForm" label-width="100px">
+                  <el-row :gutter="20">
+                    <el-col :span="8">
+                      <el-form-item label="年级">
+                        <el-select v-model="searchForm.gradeId" placeholder="请选择年级" @change="handleGradeChange" clearable>
+                          <el-option
+                            v-for="grade in grades"
+                            :key="grade.id"
+                            :label="grade.name"
+                            :value="grade.id"
+                          />
+                        </el-select>
+                      </el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                      <el-form-item label="学科">
+                        <el-select v-model="searchForm.subjectId" placeholder="请先选择年级" @change="handleSubjectChange" :disabled="!searchForm.gradeId" clearable>
+                          <el-option
+                            v-for="subject in subjects"
+                            :key="subject.id"
+                            :label="subject.name"
+                            :value="subject.id"
+                          />
+                        </el-select>
+                      </el-form-item>
+                    </el-col>
+                    <el-col :span="8">
+                      <el-form-item label="知识点">
+                        <el-select v-model="searchForm.knowledgePointId" placeholder="请先选择学科" :disabled="!searchForm.subjectId" clearable>
+                          <el-option
+                            v-for="kp in knowledgePoints"
+                            :key="kp.id"
+                            :label="kp.name"
+                            :value="kp.id"
+                          />
+                        </el-select>
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+                  <el-form-item>
+                    <el-button type="primary" :disabled="!canSearch" @click="handleSearch">查询试题</el-button>
+                    <el-button @click="handleReset">重置</el-button>
+                  </el-form-item>
+                </el-form>
               </el-card>
               <el-row :gutter="20" class="feature-cards">
                 <el-col :span="8">
@@ -35,49 +80,6 @@
                   </el-card>
                 </el-col>
               </el-row>
-            </el-col>
-            <el-col :span="8">
-              <el-card>
-                <template #header>
-                  <div class="card-header">快速查询</div>
-                </template>
-                <el-form :model="searchForm" label-width="80px">
-                  <el-form-item label="年级">
-                    <el-select v-model="searchForm.gradeId" placeholder="请选择年级" @change="handleGradeChange" clearable>
-                      <el-option
-                        v-for="grade in grades"
-                        :key="grade.id"
-                        :label="grade.name"
-                        :value="grade.id"
-                      />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item label="学科">
-                    <el-select v-model="searchForm.subjectId" placeholder="请先选择年级" @change="handleSubjectChange" :disabled="!searchForm.gradeId" clearable>
-                      <el-option
-                        v-for="subject in subjects"
-                        :key="subject.id"
-                        :label="subject.name"
-                        :value="subject.id"
-                      />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item label="知识点">
-                    <el-select v-model="searchForm.knowledgePointId" placeholder="请先选择学科" :disabled="!searchForm.subjectId" clearable>
-                      <el-option
-                        v-for="kp in knowledgePoints"
-                        :key="kp.id"
-                        :label="kp.name"
-                        :value="kp.id"
-                      />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item>
-                    <el-button type="primary" :disabled="!canSearch" @click="handleSearch">查询试题</el-button>
-                    <el-button @click="handleReset">重置</el-button>
-                  </el-form-item>
-                </el-form>
-              </el-card>
             </el-col>
           </el-row>
         </div>
