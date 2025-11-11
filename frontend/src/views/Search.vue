@@ -204,35 +204,24 @@ const sampleArray = (arr, n) => {
   return copy.slice(0, n)
 }
 
-// 加载某个学段的随机知识点（10个）
-const loadFeaturedByStage = async (stageKey, gradeId) => {
+// 加载某个学段的随机知识点（10个，跨学科/跨年级）
+const loadFeaturedByStage = async (stageKey) => {
   try {
-    const subRes = await questionApi.getSubjects(gradeId)
-    const subjectList = subRes.subjects || []
-    const subjectId = pickSubjectId(subjectList)
-    if (!subjectId) {
-      featured.value[stageKey] = []
-      return
-    }
-    const kpRes = await questionApi.getKnowledgePoints(gradeId, subjectId)
-    const kps = kpRes.knowledge_points || []
-    featured.value[stageKey] = sampleArray(kps, 10).map(kp => ({
-      ...kp,
-      _grade_id: gradeId,
-      _subject_id: subjectId
-    }))
+    const res = await questionApi.getRandomKnowledgePointsByStage(stageKey, 10)
+    const kps = res.knowledge_points || []
+    featured.value[stageKey] = kps
   } catch (e) {
     featured.value[stageKey] = []
   }
 }
 
 const goByFeatured = (kp) => {
-  if (!kp || !kp._grade_id || !kp._subject_id) return
+  if (!kp || !kp.grade_id || !kp.subject_id) return
   router.push({
     name: 'Questions',
     query: {
-      grade_id: kp._grade_id,
-      subject_id: kp._subject_id,
+      grade_id: kp.grade_id,
+      subject_id: kp.subject_id,
       knowledge_point_id: kp.id
     }
   })
@@ -291,11 +280,11 @@ onMounted(async () => {
   
   // 加载五个学段的随机知识点
   await Promise.all([
-    loadFeaturedByStage('primary', FEATURED_GRADES.primary),
-    loadFeaturedByStage('junior', FEATURED_GRADES.junior),
-    loadFeaturedByStage('senior', FEATURED_GRADES.senior),
-    loadFeaturedByStage('zhongkao', FEATURED_GRADES.zhongkao),
-    loadFeaturedByStage('gaokao', FEATURED_GRADES.gaokao)
+    loadFeaturedByStage('primary'),
+    loadFeaturedByStage('junior'),
+    loadFeaturedByStage('senior'),
+    loadFeaturedByStage('zhongkao'),
+    loadFeaturedByStage('gaokao')
   ])
 })
 </script>

@@ -16,6 +16,11 @@ export const questionApi = {
     return api.get(`/knowledge-points?grade_id=${gradeId}&subject_id=${subjectId}`)
   },
 
+  // 学段随机知识点
+  getRandomKnowledgePointsByStage(stage, limit = 10) {
+    return api.get(`/knowledge-points/random-by-stage`, { params: { stage, limit } })
+  },
+
   // 获取题型列表
   getQuestionTypes() {
     return api.get('/questions/types')

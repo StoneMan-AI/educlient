@@ -35,3 +35,49 @@ router.get('/', async (req, res, next) => {
 
 export default router
 
+
+// 随机按学段获取知识点
+router.get('/random-by-stage', async (req, res, next) => {
+  try {
+    const { stage, limit = 10 } = req.query
+    const n = Math.min(Math.max(parseInt(limit || '10', 10), 1), 50)
+    
+    let gradeCondition = ''
+    if (stage === 'primary') {
+      gradeCondition = 'kp.grade_id BETWEEN 1 AND 6'
+    } else if (stage === 'junior') {
+      gradeCondition = 'kp.grade_id BETWEEN 7 AND 9'
+    } else if (stage === 'senior') {
+      gradeCondition = 'kp.grade_id BETWEEN 10 AND 12'
+    } else if (stage === 'zhongkao') {
+      gradeCondition = 'kp.grade_id = 9'
+    } else if (stage === 'gaokao') {
+      gradeCondition = 'kp.grade_id = 12'
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: '无效的学段参数'
+      })
+    }
+    
+    const result = await pool.query(
+      `SELECT DISTINCT kp.id, kp.name, kp.grade_id, kp.subject_id
+       FROM knowledge_points kp
+       INNER JOIN questions q ON q.knowledge_point_id = kp.id
+       WHERE ${gradeCondition}
+         AND kp.is_active = TRUE
+         AND q.status = '已发布'
+       ORDER BY RANDOM()
+       LIMIT $1`,
+      [n]
+    )
+    
+    res.json({
+      success: true,
+      knowledge_points: result.rows
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
