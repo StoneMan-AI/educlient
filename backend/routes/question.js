@@ -538,8 +538,17 @@ router.post('/download-group', authenticate, async (req, res, next) => {
           }
         }
       } else {
+        // 检查用户是否已经有过已支付的下载订单（判断是否首次下载）
+        const paidDownloadResult = await pool.query(
+          `SELECT 1 FROM orders 
+           WHERE user_id = $1 AND type = 'download' AND status = 'paid'
+           LIMIT 1`,
+          [userId]
+        )
+        const isFirstDownload = paidDownloadResult.rows.length === 0
+        
         const { getDownloadPrice } = await import('../utils/pricing.js')
-        const downloadAmount = await getDownloadPrice()
+        const downloadAmount = await getDownloadPrice(isFirstDownload)
         
         const newOrderNo = `DOWNLOAD_${Date.now()}_${userId}`
         await pool.query(
@@ -552,7 +561,8 @@ router.post('/download-group', authenticate, async (req, res, next) => {
           success: true,
           need_payment: true,
           order_no: newOrderNo,
-          amount: downloadAmount
+          amount: downloadAmount,
+          is_first_download: isFirstDownload
         })
       }
     }

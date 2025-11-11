@@ -98,19 +98,21 @@ export async function getAnswerPrice(isFirstView) {
 
 /**
  * 获取下载价格
+ * @param {boolean} isFirstDownload - 是否首次下载
  * @returns {Promise<number>} 价格（元）
  */
-export async function getDownloadPrice() {
+export async function getDownloadPrice(isFirstDownload = false) {
   try {
     const testMode = isTestMode
-    const configKey = testMode ? 'download_test' : 'download'
+    const configKey = isFirstDownload ? 'download_first' : 'download_normal'
+    const key = testMode ? `${configKey}_test` : configKey
     
     const result = await pool.query(
       `SELECT amount FROM pricing_config 
        WHERE config_key = $1
          AND is_active = TRUE
        LIMIT 1`,
-      [configKey]
+      [key]
     )
     
     if (result.rows.length > 0) {
@@ -119,7 +121,7 @@ export async function getDownloadPrice() {
     
     // 如果找不到配置，返回默认值
     console.warn(`未找到下载价格配置，使用默认值`)
-    return testMode ? 0.01 : 1.00
+    return testMode ? 0.01 : (isFirstDownload ? 1.00 : 3.00)
   } catch (error) {
     console.error('获取下载价格失败:', error)
     throw error
@@ -142,7 +144,7 @@ export async function validatePrice(type, amount, params = {}) {
     } else if (type === 'view_answer') {
       expectedAmount = await getAnswerPrice(params.isFirstView || false)
     } else if (type === 'download') {
-      expectedAmount = await getDownloadPrice()
+      expectedAmount = await getDownloadPrice(params.isFirstDownload || false)
     }
     
     // 允许0.01元的误差（浮点数比较）
@@ -192,7 +194,21 @@ export async function getAllPricing() {
           pricing.answer.normal = parseFloat(row.amount)
         }
       } else if (row.config_type === 'download') {
-        pricing.download = parseFloat(row.amount)
+        if (row.config_key.includes('first')) {
+          pricing.download = {
+            first: parseFloat(row.amount),
+            normal: 0
+          }
+        } else if (row.config_key.includes('normal')) {
+          if (!pricing.download || typeof pricing.download === 'number') {
+            pricing.download = {
+              first: 0,
+              normal: parseFloat(row.amount)
+            }
+          } else {
+            pricing.download.normal = parseFloat(row.amount)
+          }
+        }
       }
     })
     

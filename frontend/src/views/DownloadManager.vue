@@ -3,7 +3,7 @@
     <el-container>
       <el-header>
         <div class="header-content">
-          <el-button @click="$router.push('/questions')" :icon="ArrowLeft">返回试题</el-button>
+          <el-button @click="$router.push('/search')" :icon="ArrowLeft">返回查询</el-button>
           <h2>下载管理</h2>
           <el-button type="primary" @click="fetchDownloads" :loading="loading">刷新</el-button>
         </div>
