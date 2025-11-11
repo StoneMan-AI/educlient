@@ -9,43 +9,6 @@
         </div>
       </el-header>
       <el-main>
-        <el-card class="featured-kp-card">
-          <template #header>
-            <div class="featured-header">按学段快速进入</div>
-          </template>
-          <div class="featured-sections">
-            <div class="featured-section">
-              <div class="section-title">小学</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.primary" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">初中</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.junior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">高中</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.senior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">中考</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.zhongkao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">高考</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.gaokao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-          </div>
-        </el-card>
         <el-card>
           <el-form :model="searchForm" label-width="100px">
             <el-row :gutter="20">
@@ -93,6 +56,44 @@
               <el-button @click="handleReset">重置</el-button>
             </el-form-item>
           </el-form>
+        </el-card>
+
+        <el-card class="featured-kp-card">
+          <template #header>
+            <div class="featured-header">学年知识点预览</div>
+          </template>
+          <div class="featured-sections">
+            <div class="featured-section">
+              <div class="section-title">小学</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.primary" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">初中</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.junior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">高中</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.senior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">中考</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.zhongkao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">高考</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.gaokao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+          </div>
         </el-card>
         
         <el-card v-if="questions.length > 0" class="result-card">
