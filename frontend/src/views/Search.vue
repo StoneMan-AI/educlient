@@ -9,6 +9,43 @@
         </div>
       </el-header>
       <el-main>
+        <el-card class="featured-kp-card">
+          <template #header>
+            <div class="featured-header">按学段快速进入</div>
+          </template>
+          <div class="featured-sections">
+            <div class="featured-section">
+              <div class="section-title">小学</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.primary" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">初中</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.junior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">高中</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.senior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">中考</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.zhongkao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+            <div class="featured-section">
+              <div class="section-title">高考</div>
+              <div class="kp-grid">
+                <a v-for="kp in featured.gaokao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+              </div>
+            </div>
+          </div>
+        </el-card>
         <el-card>
           <el-form :model="searchForm" label-width="100px">
             <el-row :gutter="20">
@@ -78,6 +115,15 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
 import { useQuestionStore } from '@/stores/question'
 import { ElMessage } from 'element-plus'
+
+// 学段代表年级（用于快速入口）：小学=1、初中=7、高中=10、中考=9、高考=12
+const FEATURED_GRADES = {
+  primary: 1,
+  junior: 7,
+  senior: 10,
+  zhongkao: 9,
+  gaokao: 12
+}
 import UserActions from '@/components/UserActions.vue'
 
 const router = useRouter()
@@ -88,6 +134,14 @@ const subjects = ref([])
 const knowledgePoints = ref([])
 const questions = ref([])
 const total = ref(0)
+
+const featured = ref({
+  primary: [],
+  junior: [],
+  senior: [],
+  zhongkao: [],
+  gaokao: []
+})
 
 const searchForm = ref({
   gradeId: null,
@@ -130,6 +184,57 @@ const handleSubjectChange = async () => {
       ElMessage.error('获取知识点列表失败')
     }
   }
+}
+
+// 选择“数学”学科优先，否则取第一个学科
+const pickSubjectId = (subjectList) => {
+  if (!Array.isArray(subjectList) || subjectList.length === 0) return null
+  const math = subjectList.find(s => s.name?.includes('数') || s.code?.toLowerCase() === 'math')
+  return (math || subjectList[0]).id
+}
+
+// 从数组中随机抽取最多n个
+const sampleArray = (arr, n) => {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy.slice(0, n)
+}
+
+// 加载某个学段的随机知识点（10个）
+const loadFeaturedByStage = async (stageKey, gradeId) => {
+  try {
+    const subRes = await questionApi.getSubjects(gradeId)
+    const subjectList = subRes.subjects || []
+    const subjectId = pickSubjectId(subjectList)
+    if (!subjectId) {
+      featured.value[stageKey] = []
+      return
+    }
+    const kpRes = await questionApi.getKnowledgePoints(gradeId, subjectId)
+    const kps = kpRes.knowledge_points || []
+    featured.value[stageKey] = sampleArray(kps, 10).map(kp => ({
+      ...kp,
+      _grade_id: gradeId,
+      _subject_id: subjectId
+    }))
+  } catch (e) {
+    featured.value[stageKey] = []
+  }
+}
+
+const goByFeatured = (kp) => {
+  if (!kp || !kp._grade_id || !kp._subject_id) return
+  router.push({
+    name: 'Questions',
+    query: {
+      grade_id: kp._grade_id,
+      subject_id: kp._subject_id,
+      knowledge_point_id: kp.id
+    }
+  })
 }
 
 const handleSearch = async () => {
@@ -182,6 +287,15 @@ onMounted(async () => {
   } catch (error) {
     ElMessage.error('获取年级列表失败')
   }
+  
+  // 加载五个学段的随机知识点
+  await Promise.all([
+    loadFeaturedByStage('primary', FEATURED_GRADES.primary),
+    loadFeaturedByStage('junior', FEATURED_GRADES.junior),
+    loadFeaturedByStage('senior', FEATURED_GRADES.senior),
+    loadFeaturedByStage('zhongkao', FEATURED_GRADES.zhongkao),
+    loadFeaturedByStage('gaokao', FEATURED_GRADES.gaokao)
+  ])
 })
 </script>
 
@@ -205,6 +319,44 @@ onMounted(async () => {
 
 .result-card {
   margin-top: 20px;
+}
+
+.featured-kp-card {
+  margin-bottom: 20px;
+}
+
+.featured-header {
+  font-weight: 600;
+}
+
+.featured-sections {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 16px;
+}
+
+.featured-section .section-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.kp-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.kp-item {
+  display: inline-block;
+  color: #409eff;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kp-item:hover {
+  text-decoration: underline;
 }
 
 .result-header {
