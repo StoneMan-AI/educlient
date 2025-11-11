@@ -133,29 +133,21 @@ const handleSubjectChange = async () => {
 }
 
 const handleSearch = async () => {
-  try {
-    const res = await questionApi.searchQuestions({
+  // 直接跳转到试题展示页，由试题页负责加载数据
+  // 保存筛选条件（供其他地方使用）
+  questionStore.setFilters({
+    gradeId: searchForm.value.gradeId,
+    subjectId: searchForm.value.subjectId,
+    knowledgePointId: searchForm.value.knowledgePointId
+  })
+  router.push({
+    name: 'Questions',
+    query: {
       grade_id: searchForm.value.gradeId,
       subject_id: searchForm.value.subjectId,
       knowledge_point_id: searchForm.value.knowledgePointId
-    })
-    
-    questions.value = res.questions || []
-    total.value = res.total || 0
-    
-    // 保存筛选条件
-    questionStore.setFilters({
-      gradeId: searchForm.value.gradeId,
-      subjectId: searchForm.value.subjectId,
-      knowledgePointId: searchForm.value.knowledgePointId
-    })
-    
-    if (questions.value.length === 0) {
-      ElMessage.info('未找到相关试题')
     }
-  } catch (error) {
-    ElMessage.error('查询失败：' + (error.response?.data?.message || error.message))
-  }
+  })
 }
 
 const handleReset = () => {

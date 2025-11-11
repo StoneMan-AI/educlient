@@ -121,7 +121,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
@@ -542,12 +542,53 @@ const performDownload = async (orderNo) => {
   }
 }
 
+// 键盘事件处理函数
+const handleKeydown = (event) => {
+  // 如果用户在输入框、文本域或其他可输入元素中，不处理键盘事件
+  const target = event.target
+  const isInputElement = target.tagName === 'INPUT' || 
+                         target.tagName === 'TEXTAREA' || 
+                         target.isContentEditable ||
+                         target.closest('.el-input') ||
+                         target.closest('.el-textarea') ||
+                         target.closest('.el-select')
+  
+  if (isInputElement) {
+    return
+  }
+  
+  // 如果对话框打开，不处理键盘事件
+  if (answerDialogVisible.value || paymentDialogVisible.value) {
+    return
+  }
+  
+  // 处理左箭头键（上一题）
+  if (event.key === 'ArrowLeft' || event.keyCode === 37) {
+    event.preventDefault()
+    handlePrev()
+  }
+  
+  // 处理右箭头键（下一题）
+  if (event.key === 'ArrowRight' || event.keyCode === 39) {
+    event.preventDefault()
+    handleNext()
+  }
+}
+
 onMounted(() => {
   loadGuestLimitState()
   if (userStore.isLoggedIn) {
     clearGuestLimitState()
   }
   loadQuestions()
+  
+  // 添加键盘事件监听器
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  // 移除键盘事件监听器
+  window.removeEventListener('keydown', handleKeydown)
 })
 
 watch(() => userStore.isLoggedIn, (val) => {
