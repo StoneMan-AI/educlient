@@ -5,6 +5,7 @@
         <div class="header-content">
           <el-button @click="$router.push('/')" :icon="ArrowLeft">返回首页</el-button>
           <h2>查询试题</h2>
+          <UserActions />
         </div>
       </el-header>
       <el-main>
@@ -77,6 +78,7 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
 import { useQuestionStore } from '@/stores/question'
 import { ElMessage } from 'element-plus'
+import UserActions from '@/components/UserActions.vue'
 
 const router = useRouter()
 const questionStore = useQuestionStore()
@@ -201,6 +203,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 20px;
+  justify-content: space-between;
   height: 100%;
 }
 

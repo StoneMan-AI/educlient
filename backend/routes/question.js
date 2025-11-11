@@ -564,20 +564,18 @@ router.post('/download-group', authenticate, async (req, res, next) => {
     
     let answerPdfBuffer = null
     if (isVip) {
-      const questionResult = await pool.query(
-        'SELECT DISTINCT knowledge_point_id FROM questions WHERE id = ANY($1::int[])',
+      const questionDetailResult = await pool.query(
+        'SELECT id, knowledge_point_id FROM questions WHERE id = ANY($1::int[])',
         [question_ids]
       )
       
-      const knowledgePointIds = questionResult.rows.map(r => r.knowledge_point_id).filter(Boolean)
-      
-      if (knowledgePointIds.length > 0) {
-        for (const qid of question_ids) {
+      for (const row of questionDetailResult.rows) {
+        if (row.knowledge_point_id) {
           await pool.query(
             `INSERT INTO user_downloaded_questions (user_id, question_id, knowledge_point_id)
              VALUES ($1, $2, $3)
              ON CONFLICT (user_id, question_id) DO NOTHING`,
-            [userId, qid, knowledgePointIds[0]]
+            [userId, row.id, row.knowledge_point_id]
           )
         }
       }

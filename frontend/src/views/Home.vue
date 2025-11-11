@@ -4,21 +4,7 @@
       <el-header>
         <div class="header-content">
           <h1>试题图片组合网站</h1>
-          <div class="user-actions">
-            <el-button v-if="!userStore.isLoggedIn" @click="$router.push('/login')">登录/注册</el-button>
-            <el-dropdown v-else>
-              <span class="user-info">
-                {{ userStore.userInfo?.phone }}
-                <el-icon><ArrowDown /></el-icon>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="$router.push('/profile')">个人中心</el-dropdown-item>
-                  <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
+          <UserActions />
         </div>
       </el-header>
       <el-main>
@@ -30,7 +16,6 @@
               开始查询试题
             </el-button>
           </el-card>
-          
           <el-row :gutter="20" class="feature-cards">
             <el-col :span="8">
               <el-card>
@@ -58,17 +43,7 @@
 </template>
 
 <script setup>
-import { useUserStore } from '@/stores/user'
-import { ArrowDown } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-
-const userStore = useUserStore()
-
-const handleLogout = () => {
-  userStore.logout()
-  ElMessage.success('已退出登录')
-  location.reload()
-}
+import UserActions from '@/components/UserActions.vue'
 </script>
 
 <style scoped>
