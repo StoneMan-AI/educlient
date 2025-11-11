@@ -323,6 +323,7 @@ onMounted(async () => {
 }
 
 .featured-kp-card {
+  margin-top: 20px;
   margin-bottom: 20px;
 }
 
