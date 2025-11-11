@@ -99,7 +99,7 @@ export async function createDownloadRecord({
     await client.query('BEGIN')
     const insertResult = await client.query(
       `INSERT INTO download_records (user_id, question_ids, is_vip, question_pdf_path, answer_pdf_path, expires_at)
-       VALUES ($1, $2, $3, '', '', NOW() + INTERVAL '7 days')
+       VALUES ($1, $2, $3, NULL, NULL, NOW() + INTERVAL '7 days')
        RETURNING id, created_at, expires_at, question_ids, is_vip`,
       [userId, questionIds, isVip]
     )
@@ -109,9 +109,12 @@ export async function createDownloadRecord({
     const dirPath = path.join(DOWNLOAD_ROOT, recordId)
     await fsp.mkdir(dirPath, { recursive: true })
 
-    const questionRelativePath = path.join(recordId, 'question.pdf')
-    const questionAbsolutePath = path.join(DOWNLOAD_ROOT, questionRelativePath)
-    await fsp.writeFile(questionAbsolutePath, questionPdfBuffer)
+    let questionRelativePath = null
+    if (questionPdfBuffer) {
+      questionRelativePath = path.join(recordId, 'question.pdf')
+      const questionAbsolutePath = path.join(DOWNLOAD_ROOT, questionRelativePath)
+      await fsp.writeFile(questionAbsolutePath, questionPdfBuffer)
+    }
 
     let answerRelativePath = null
     if (answerPdfBuffer) {
@@ -230,4 +233,15 @@ export async function getDownloadFile({ recordId, type, userId }) {
 
 export function mapDownloadRecordToResponse(record) {
   return mapRecordToResponse(record)
+}
+
+export async function createEmptyDownloadRecord({ userId, questionIds, isVip }) {
+  await ensureDownloadRoot()
+  const result = await pool.query(
+    `INSERT INTO download_records (user_id, question_ids, is_vip, question_pdf_path, answer_pdf_path, expires_at)
+     VALUES ($1, $2, $3, NULL, NULL, NOW() + INTERVAL '7 days')
+     RETURNING *`,
+    [userId, questionIds, isVip]
+  )
+  return result.rows[0]
 }

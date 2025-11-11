@@ -40,6 +40,7 @@ import knowledgePointRoutes from './routes/knowledgePoint.js'
 import pricingRoutes from './routes/pricing.js'
 import downloadRoutes from './routes/downloads.js'
 import debugRoutes from './routes/debug.js'
+import { startGenerationWorker } from './utils/generationWorker.js'
 
 app.use('/api/auth', authRoutes)
 app.use('/api/user', userRoutes)
@@ -75,5 +76,7 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`服务器运行在端口 ${PORT}`)
+  // 启动生成队列Worker
+  startGenerationWorker()
 })
 

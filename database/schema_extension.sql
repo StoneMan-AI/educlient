@@ -177,3 +177,28 @@ COMMENT ON TABLE guest_access_logs IS '未登录用户访问记录表，用于�
 COMMENT ON TABLE user_answer_views IS '用户查看答案记录表';
 COMMENT ON TABLE reset_password_codes IS '重置密码验证码表';
 
+-- 生成PDF任务表（异步队列）
+CREATE TABLE IF NOT EXISTS generation_jobs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    question_ids INTEGER[] NOT NULL,
+    grade_id INTEGER REFERENCES grades(id) ON DELETE SET NULL,
+    subject_id INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+    knowledge_point_id INTEGER REFERENCES knowledge_points(id) ON DELETE SET NULL,
+    is_vip BOOLEAN DEFAULT FALSE,
+    download_record_id INTEGER REFERENCES download_records(id) ON DELETE SET NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','done','failed','timeout','permanent_failed','cancelled')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 2,
+    error_message TEXT,
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP,
+    output_question_pdf_path TEXT,
+    output_answer_pdf_path TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_generation_jobs_status ON generation_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_generation_jobs_user ON generation_jobs(user_id);
+

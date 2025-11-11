@@ -567,51 +567,38 @@ router.post('/download-group', authenticate, async (req, res, next) => {
       }
     }
     
-    const { generatePDF, generateAnswerPDF } = await import('../utils/pdfGenerator.js')
-    const { createDownloadRecord, mapDownloadRecordToResponse } = await import('../utils/downloadManager.js')
-    
-    const questionPdfBuffer = await generatePDF(question_ids, userId, false)
-    
-    let answerPdfBuffer = null
-    if (isVip) {
-      const questionDetailResult = await pool.query(
-        'SELECT id, knowledge_point_id FROM questions WHERE id = ANY($1::int[])',
-        [question_ids]
-      )
-      
-      for (const row of questionDetailResult.rows) {
-        if (row.knowledge_point_id) {
-          await pool.query(
-            `INSERT INTO user_downloaded_questions (user_id, question_id, knowledge_point_id)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (user_id, question_id) DO NOTHING`,
-            [userId, row.id, row.knowledge_point_id]
-          )
-        }
-      }
-      
-      answerPdfBuffer = await generateAnswerPDF(question_ids)
-    }
-    
-    const downloadRecord = await createDownloadRecord({
+    // 改为异步生成：创建空记录并创建任务
+    const { createEmptyDownloadRecord, mapDownloadRecordToResponse } = await import('../utils/downloadManager.js')
+    const emptyRecord = await createEmptyDownloadRecord({
       userId,
       questionIds: question_ids,
-      isVip,
-      questionPdfBuffer,
-      answerPdfBuffer
+      isVip
     })
-    
+
     if (!isVip && order) {
       await pool.query(
         `UPDATE orders SET download_record_id = $1, updated_at = NOW() WHERE id = $2`,
-        [downloadRecord.id, order.id]
+        [emptyRecord.id, order.id]
       )
     }
-    
+
+    // 入队任务
+    const detailRes = await pool.query(
+      `SELECT q.grade_id, q.subject_id, q.knowledge_point_id 
+       FROM questions q WHERE q.id = $1`,
+      [question_ids[0]]
+    )
+    const meta = detailRes.rows[0] || {}
+    await pool.query(
+      `INSERT INTO generation_jobs (user_id, question_ids, grade_id, subject_id, knowledge_point_id, is_vip, download_record_id, status, max_attempts)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 2)`,
+      [userId, question_ids, meta.grade_id || null, meta.subject_id || null, meta.knowledge_point_id || null, isVip, emptyRecord.id]
+    )
+
     res.json({
       success: true,
       need_payment: false,
-      download: mapDownloadRecordToResponse(downloadRecord)
+      download: mapDownloadRecordToResponse(emptyRecord)
     })
   } catch (error) {
     next(error)
