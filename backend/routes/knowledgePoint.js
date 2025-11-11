@@ -60,16 +60,22 @@ router.get('/random-by-stage', async (req, res, next) => {
       })
     }
     
+    // 使用子查询先随机抽取ID，再回表取字段，避免 DISTINCT 与 ORDER BY 的冲突
     const result = await pool.query(
-      `SELECT DISTINCT kp.id, kp.name, kp.grade_id, kp.subject_id
+      `SELECT kp.id, kp.name, kp.grade_id, kp.subject_id
        FROM knowledge_points kp
-       INNER JOIN questions q ON q.knowledge_point_id = kp.id
-       WHERE ${gradeCondition}
-         AND kp.is_active = TRUE
-         AND q.status = '已发布'
-       ORDER BY RANDOM()
-       LIMIT $1`,
-      [n]
+       INNER JOIN (
+         SELECT kp.id
+         FROM knowledge_points kp
+         INNER JOIN questions q ON q.knowledge_point_id = kp.id
+         WHERE ${gradeCondition}
+           AND kp.is_active = TRUE
+           AND q.status = '已发布'
+         GROUP BY kp.id
+         ORDER BY RANDOM()
+         LIMIT $1
+       ) r ON r.id = kp.id`,
+       [n]
     )
     
     res.json({
