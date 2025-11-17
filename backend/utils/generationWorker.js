@@ -54,33 +54,58 @@ async function runOneJob(job) {
   )
   const timer = setTimeout(() => {}, 0) // 保留引用用于清理
   try {
-    // 准备命名
+    // 准备命名和目录
+    const DOWNLOAD_ROOT = path.join(process.cwd(), 'downloads')
     const phone = await loadUserPhone(job.user_id)
     const masked = maskPhone(phone)
     const meta = await getMetaForNaming(job.grade_id, job.subject_id, job.knowledge_point_id)
     const ts = new Date()
     const tsStr = `${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}`
     const baseName = `${masked}_${meta.gradeCode}_${meta.subjectCode}_${meta.kpId}_${tsStr}`
-    const downloadsDir = path.resolve(process.cwd(), 'backend', 'downloads')
+    
+    // 确定输出目录：如果有download_record_id，使用recordId子目录；否则使用根目录
+    let outputDir = DOWNLOAD_ROOT
+    let questionRelativePath = null
+    let answerRelativePath = null
+    
+    if (job.download_record_id) {
+      // 使用download_records的目录结构：{recordId}/question.pdf
+      outputDir = path.join(DOWNLOAD_ROOT, job.download_record_id.toString())
+      questionRelativePath = path.join(job.download_record_id.toString(), 'question.pdf')
+      if (job.is_vip) {
+        answerRelativePath = path.join(job.download_record_id.toString(), 'answer.pdf')
+      }
+    } else {
+      // 如果没有download_record_id，使用自定义文件名（兼容旧逻辑）
+      questionRelativePath = `${baseName}.pdf`
+      if (job.is_vip) {
+        answerRelativePath = `${baseName}_A.pdf`
+      }
+    }
+    
+    // 确保输出目录存在
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true })
+    }
 
     // 题图 → 大图页 → PDF
     const qPaths = await getQuestionImagePaths(job.question_ids, false)
     const qPages = await composeQuestionImagesToPages(qPaths)
-    const questionPdfPath = await assemblePdfFromPages(qPages, downloadsDir, baseName)
+    const questionPdfAbsolutePath = await assemblePdfFromPages(qPages, outputDir, job.download_record_id ? 'question' : baseName)
     cleanupTempFiles(qPages)
 
-    let answerPdfPath = null
+    let answerPdfAbsolutePath = null
     if (job.is_vip) {
       const aPaths = await getQuestionImagePaths(job.question_ids, true)
       if (aPaths.length > 0) {
         const aPages = await composeQuestionImagesToPages(aPaths)
-        const aBase = `${baseName}_A`
-        answerPdfPath = await assemblePdfFromPages(aPages, downloadsDir, aBase)
+        const aBase = job.download_record_id ? 'answer' : `${baseName}_A`
+        answerPdfAbsolutePath = await assemblePdfFromPages(aPages, outputDir, aBase)
         cleanupTempFiles(aPages)
       }
     }
 
-    // 回填下载记录与任务
+    // 回填下载记录与任务（存储相对路径）
     if (job.download_record_id) {
       await pool.query(
         `UPDATE download_records 
@@ -88,7 +113,7 @@ async function runOneJob(job) {
              answer_pdf_path = COALESCE($2, answer_pdf_path),
              updated_at = NOW()
          WHERE id = $3`,
-        [questionPdfPath, answerPdfPath, job.download_record_id]
+        [questionRelativePath, answerRelativePath, job.download_record_id]
       )
     }
     await pool.query(
@@ -97,7 +122,7 @@ async function runOneJob(job) {
            output_question_pdf_path = $1, output_answer_pdf_path = $2,
            updated_at = NOW()
        WHERE id = $3`,
-      [questionPdfPath, answerPdfPath, job.id]
+      [questionRelativePath, answerRelativePath, job.id]
     )
   } catch (err) {
     const took = Date.now() - startedAt.getTime()
