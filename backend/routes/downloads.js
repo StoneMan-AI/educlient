@@ -32,9 +32,35 @@ router.get('/file/:id/:type', authenticate, async (req, res, next) => {
       type,
       userId: req.user.id
     })
-    res.download(absolutePath, downloadName)
+    
+    // 设置下载响应头
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`)
+    
+    // 使用download方法，如果失败则返回错误
+    res.download(absolutePath, downloadName, (err) => {
+      if (err) {
+        console.error(`[下载] 文件下载失败: ${absolutePath}`, err)
+        // 如果文件已开始发送，不要发送错误响应
+        if (!res.headersSent) {
+          res.status(err.status || 500).json({
+            success: false,
+            message: err.message || '文件下载失败'
+          })
+        }
+      }
+    })
   } catch (error) {
-    next(error)
+    console.error(`[下载] 下载处理失败:`, error)
+    // 确保错误信息正确返回
+    if (!res.headersSent) {
+      res.status(error.status || 500).json({
+        success: false,
+        message: error.message || '文件下载失败'
+      })
+    } else {
+      next(error)
+    }
   }
 })
 
