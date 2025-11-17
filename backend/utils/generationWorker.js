@@ -110,8 +110,7 @@ async function runOneJob(job) {
       await pool.query(
         `UPDATE download_records 
          SET question_pdf_path = COALESCE($1, question_pdf_path),
-             answer_pdf_path = COALESCE($2, answer_pdf_path),
-             updated_at = NOW()
+             answer_pdf_path = COALESCE($2, answer_pdf_path)
          WHERE id = $3`,
         [questionRelativePath, answerRelativePath, job.download_record_id]
       )
