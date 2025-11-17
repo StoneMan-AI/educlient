@@ -32,27 +32,29 @@
             </el-table-column>
             <el-table-column label="试题组" min-width="160">
               <template #default="scope">
-                <a
+                <el-button
                   v-if="scope.row.question_pdf_url"
-                  :href="scope.row.question_pdf_url"
-                  target="_blank"
-                  download="试题组.pdf"
+                  type="primary"
+                  link
+                  @click="handleDownload(scope.row.question_pdf_url, '试题组.pdf')"
+                  :loading="downloading === scope.row.question_pdf_url"
                 >
                   试题组.pdf
-                </a>
+                </el-button>
                 <span v-else>--</span>
               </template>
             </el-table-column>
             <el-table-column label="答案" min-width="160">
               <template #default="scope">
-                <a
+                <el-button
                   v-if="scope.row.answer_pdf_url"
-                  :href="scope.row.answer_pdf_url"
-                  target="_blank"
-                  download="答案.pdf"
+                  type="primary"
+                  link
+                  @click="handleDownload(scope.row.answer_pdf_url, '答案.pdf')"
+                  :loading="downloading === scope.row.answer_pdf_url"
                 >
                   答案.pdf
-                </a>
+                </el-button>
                 <span v-else>--</span>
               </template>
             </el-table-column>
@@ -68,9 +70,12 @@ import { ref, onMounted } from 'vue'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { downloadApi } from '@/api/download'
+import { useUserStore } from '@/stores/user'
 
 const downloads = ref([])
 const loading = ref(false)
+const downloading = ref(null)
+const userStore = useUserStore()
 
 const formatDateTime = (value) => {
   if (!value) return '-'
@@ -89,6 +94,67 @@ const fetchDownloads = async () => {
     ElMessage.error(error.message || '获取下载记录失败')
   } finally {
     loading.value = false
+  }
+}
+
+const handleDownload = async (url, filename) => {
+  if (!url) {
+    ElMessage.warning('下载链接不存在')
+    return
+  }
+
+  if (!userStore.token) {
+    ElMessage.error('请先登录')
+    return
+  }
+
+  downloading.value = url
+  try {
+    // 获取完整URL
+    // url格式可能是: /api/downloads/file/9/question
+    // 如果已经是完整URL（http开头），直接使用
+    // 否则使用相对路径（浏览器会自动使用当前域名）
+    let fullUrl = url
+    if (!url.startsWith('http')) {
+      // 相对路径，浏览器会自动使用当前域名
+      // 例如：/api/downloads/file/9/question -> https://educlient.adddesigngroup.com/api/downloads/file/9/question
+      fullUrl = url
+    }
+    
+    // 使用fetch下载文件，携带认证token
+    const response = await fetch(fullUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${userStore.token}`
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `下载失败: ${response.status} ${response.statusText}`)
+    }
+
+    // 获取文件blob
+    const blob = await response.blob()
+    
+    // 创建blob URL并触发下载
+    const blobUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    // 释放blob URL
+    window.URL.revokeObjectURL(blobUrl)
+    
+    ElMessage.success('下载成功')
+  } catch (error) {
+    console.error('下载失败:', error)
+    ElMessage.error(error.message || '下载失败，请稍后重试')
+  } finally {
+    downloading.value = null
   }
 }
 
