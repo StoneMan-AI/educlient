@@ -117,7 +117,7 @@ const handleDownload = async (url, filename) => {
     let fullUrl = url
     if (!url.startsWith('http')) {
       // 相对路径，浏览器会自动使用当前域名
-      // 例如：/api/downloads/file/9/question -> https://educlient.adddesigngroup.com/api/downloads/file/9/question
+      // 例如：/api/downloads/file/9/question -> https://www.qingsongkao.cn/api/downloads/file/9/question
       fullUrl = url
     }
     
