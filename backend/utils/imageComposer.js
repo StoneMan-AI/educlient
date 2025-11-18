@@ -24,20 +24,31 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
   let currentPageItems = []
 
   const measureAndResize = async (imgPath) => {
-    const meta = await sharp(imgPath).metadata()
-    if (!meta.width || !meta.height) {
-      throw new Error(`无法读取图片尺寸: ${imgPath}`)
+    try {
+      const meta = await sharp(imgPath).metadata()
+      if (!meta.width || !meta.height) {
+        console.warn(`[ImageComposer] 警告：无法读取图片尺寸，跳过: ${imgPath}`)
+        return null
+      }
+      // 等比缩放到页面宽度
+      const scale = pageWidthPx / meta.width
+      const w = Math.round(meta.width * scale)
+      const h = Math.round(meta.height * scale)
+      const buffer = await sharp(imgPath).resize({ width: pageWidthPx }).toBuffer()
+      return { width: w, height: h, buffer }
+    } catch (error) {
+      console.warn(`[ImageComposer] 警告：图片读取失败，跳过: ${imgPath}`, error.message)
+      return null
     }
-    // 等比缩放到页面宽度
-    const scale = pageWidthPx / meta.width
-    const w = Math.round(meta.width * scale)
-    const h = Math.round(meta.height * scale)
-    const buffer = await sharp(imgPath).resize({ width: pageWidthPx }).toBuffer()
-    return { width: w, height: h, buffer }
   }
 
   for (const img of imagePaths) {
-    const { width, height, buffer } = await measureAndResize(img)
+    const resized = await measureAndResize(img)
+    if (!resized) {
+      console.warn(`[ImageComposer] 跳过损坏或无法读取的图片: ${img}`)
+      continue
+    }
+    const { width, height, buffer } = resized
     // 是否需要换页
     const neededHeight = (currentPageItems.length === 0 ? 0 : gapPx) + height
     if (currentY + neededHeight > pageHeightPx) {
@@ -60,6 +71,10 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
   if (currentPageItems.length > 0) {
     const pagePath = await flushPage(currentPageItems, pageWidthPx, currentY, tempDir, pages.length)
     pages.push(pagePath)
+  }
+
+  if (pages.length === 0) {
+    throw new Error('所有图片都无法处理，无法生成PDF页面')
   }
 
   return pages

@@ -40,12 +40,19 @@ async function getQuestionImagePaths(questionIds, isAnswer = false) {
   const paths = []
   for (const row of res.rows) {
     if (!row.url) {
-      console.warn(`[Worker] 题目 #${row.id} 没有${isAnswer ? '答案' : '题目'}图片URL`)
+      console.warn(`[Worker] 题目 #${row.id} 没有${isAnswer ? '答案' : '题目'}图片URL，跳过`)
       continue
     }
     // row.url 可能为 /uploads/xxx.png 或相对路径
     const rel = row.url.replace(/^\/?uploads\//, '')
     const fullPath = path.join(base, rel)
+    
+    // 检查文件是否存在，不存在则跳过并记录警告
+    if (!fs.existsSync(fullPath)) {
+      console.warn(`[Worker] 警告：图片文件不存在，跳过题目 #${row.id}: ${fullPath}`)
+      continue
+    }
+    
     paths.push(fullPath)
     console.log(`[Worker] 题目 #${row.id}: ${row.url} -> ${fullPath}`)
   }
@@ -68,26 +75,30 @@ async function runOneJob(job) {
     const masked = maskPhone(phone)
     const meta = await getMetaForNaming(job.grade_id, job.subject_id, job.knowledge_point_id)
     const ts = new Date()
-    const tsStr = `${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}`
+    // 时间格式：yyyyMMddHHmmss（无下划线，连续）
+    const tsStr = `${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}`
+    // 文件命名格式：手机号后4位_年级code_学科code_知识点id_yyyyMMddHHmmss
     const baseName = `${masked}_${meta.gradeCode}_${meta.subjectCode}_${meta.kpId}_${tsStr}`
     
-    // 确定输出目录：如果有download_record_id，使用recordId子目录；否则使用根目录
+    // 确定输出目录和文件名
     let outputDir = DOWNLOAD_ROOT
     let questionRelativePath = null
     let answerRelativePath = null
+    let questionFileName = `${baseName}.pdf`
+    let answerFileName = `${baseName}_A.pdf`
     
     if (job.download_record_id) {
-      // 使用download_records的目录结构：{recordId}/question.pdf
+      // 使用download_records的目录结构：{recordId}/文件名.pdf
       outputDir = path.join(DOWNLOAD_ROOT, job.download_record_id.toString())
-      questionRelativePath = path.join(job.download_record_id.toString(), 'question.pdf')
+      questionRelativePath = path.join(job.download_record_id.toString(), questionFileName)
       if (job.is_vip) {
-        answerRelativePath = path.join(job.download_record_id.toString(), 'answer.pdf')
+        answerRelativePath = path.join(job.download_record_id.toString(), answerFileName)
       }
     } else {
-      // 如果没有download_record_id，使用自定义文件名（兼容旧逻辑）
-      questionRelativePath = `${baseName}.pdf`
+      // 如果没有download_record_id，直接使用文件名
+      questionRelativePath = questionFileName
       if (job.is_vip) {
-        answerRelativePath = `${baseName}_A.pdf`
+        answerRelativePath = answerFileName
       }
     }
     
@@ -102,14 +113,7 @@ async function runOneJob(job) {
     console.log(`[Worker] 找到 ${qPaths.length} 张题目图片:`, qPaths)
     
     if (qPaths.length === 0) {
-      throw new Error(`未找到任何题目图片，question_ids: ${JSON.stringify(job.question_ids)}`)
-    }
-    
-    // 验证图片文件是否存在
-    for (const imgPath of qPaths) {
-      if (!fs.existsSync(imgPath)) {
-        throw new Error(`图片文件不存在: ${imgPath}`)
-      }
+      throw new Error(`未找到任何有效的题目图片，question_ids: ${JSON.stringify(job.question_ids)}`)
     }
     
     console.log(`[Worker] 开始合成图片...`)
@@ -117,7 +121,9 @@ async function runOneJob(job) {
     console.log(`[Worker] 生成了 ${qPages.length} 页大图:`, qPages)
     
     console.log(`[Worker] 开始生成PDF，输出目录: ${outputDir}`)
-    const questionPdfAbsolutePath = await assemblePdfFromPages(qPages, outputDir, job.download_record_id ? 'question' : baseName)
+    // 使用新的文件名格式（不含.pdf扩展名，assemblePdfFromPages会自动添加）
+    const questionPdfBaseName = baseName
+    const questionPdfAbsolutePath = await assemblePdfFromPages(qPages, outputDir, questionPdfBaseName)
     console.log(`[Worker] PDF生成成功: ${questionPdfAbsolutePath}`)
     
     // 验证PDF文件是否存在
@@ -133,16 +139,11 @@ async function runOneJob(job) {
       const aPaths = await getQuestionImagePaths(job.question_ids, true)
       console.log(`[Worker] 找到 ${aPaths.length} 张答案图片:`, aPaths)
       if (aPaths.length > 0) {
-        // 验证答案图片文件是否存在
-        for (const imgPath of aPaths) {
-          if (!fs.existsSync(imgPath)) {
-            console.warn(`[Worker] 警告：答案图片文件不存在: ${imgPath}`)
-          }
-        }
         const aPages = await composeQuestionImagesToPages(aPaths)
         console.log(`[Worker] 生成了 ${aPages.length} 页答案大图`)
-        const aBase = job.download_record_id ? 'answer' : `${baseName}_A`
-        answerPdfAbsolutePath = await assemblePdfFromPages(aPages, outputDir, aBase)
+        // 答案PDF文件名：baseName_A（不含.pdf扩展名，assemblePdfFromPages会自动添加）
+        const answerPdfBaseName = `${baseName}_A`
+        answerPdfAbsolutePath = await assemblePdfFromPages(aPages, outputDir, answerPdfBaseName)
         console.log(`[Worker] 答案PDF生成成功: ${answerPdfAbsolutePath}`)
         
         // 验证答案PDF文件是否存在
