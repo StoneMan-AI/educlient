@@ -72,6 +72,12 @@ function buildFileUrl(id, type) {
 }
 
 function mapRecordToResponse(record) {
+  // 从路径中提取文件名
+  const getFileName = (filePath) => {
+    if (!filePath) return null
+    return path.basename(filePath)
+  }
+  
   return {
     id: record.id,
     question_ids: record.question_ids,
@@ -80,7 +86,9 @@ function mapRecordToResponse(record) {
     created_at: record.created_at,
     expires_at: record.expires_at,
     question_pdf_url: record.question_pdf_path ? buildFileUrl(record.id, 'question') : null,
-    answer_pdf_url: record.answer_pdf_path ? buildFileUrl(record.id, 'answer') : null
+    question_pdf_filename: getFileName(record.question_pdf_path),
+    answer_pdf_url: record.answer_pdf_path ? buildFileUrl(record.id, 'answer') : null,
+    answer_pdf_filename: getFileName(record.answer_pdf_path)
   }
 }
 
@@ -196,10 +204,12 @@ export async function getDownloadFile({ recordId, type, userId }) {
   let downloadName
   if (type === 'question') {
     relativePath = record.question_pdf_path
-    downloadName = '试题组.pdf'
+    // 从路径中提取文件名（如：7/8888_primary_math_123_20251111153000.pdf -> 8888_primary_math_123_20251111153000.pdf）
+    downloadName = relativePath ? path.basename(relativePath) : '试题组.pdf'
   } else if (type === 'answer') {
     relativePath = record.answer_pdf_path
-    downloadName = '答案.pdf'
+    // 从路径中提取文件名（如：7/8888_primary_math_123_20251111153000_A.pdf -> 8888_primary_math_123_20251111153000_A.pdf）
+    downloadName = relativePath ? path.basename(relativePath) : '答案.pdf'
   } else {
     const error = new Error('文件类型不正确')
     error.status = 400

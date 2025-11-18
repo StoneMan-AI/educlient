@@ -17,7 +17,11 @@ app.use(cors())
 
 // 重要：微信支付回调需要使用原始XML数据，必须在express.json()之前处理
 // 为支付回调路径单独配置express.raw中间件
-app.use('/api/vip/payment-callback', express.raw({ type: 'application/xml', limit: '10mb' }))
+// 注意：微信支付回调可能使用 text/xml 或 application/xml，需要同时匹配
+app.use('/api/vip/payment-callback', express.raw({ 
+  type: ['application/xml', 'text/xml'], 
+  limit: '10mb' 
+}))
 
 // 其他路由使用JSON解析
 app.use(express.json())

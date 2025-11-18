@@ -36,10 +36,10 @@
                   v-if="scope.row.question_pdf_url"
                   type="primary"
                   link
-                  @click="handleDownload(scope.row.question_pdf_url, '试题组.pdf')"
+                  @click="handleDownload(scope.row.question_pdf_url, scope.row.question_pdf_filename || '试题组.pdf')"
                   :loading="downloading === scope.row.question_pdf_url"
                 >
-                  试题组.pdf
+                  {{ scope.row.question_pdf_filename || '试题组.pdf' }}
                 </el-button>
                 <span v-else>--</span>
               </template>
@@ -50,10 +50,10 @@
                   v-if="scope.row.answer_pdf_url"
                   type="primary"
                   link
-                  @click="handleDownload(scope.row.answer_pdf_url, '答案.pdf')"
+                  @click="handleDownload(scope.row.answer_pdf_url, scope.row.answer_pdf_filename || '答案.pdf')"
                   :loading="downloading === scope.row.answer_pdf_url"
                 >
-                  答案.pdf
+                  {{ scope.row.answer_pdf_filename || '答案.pdf' }}
                 </el-button>
                 <span v-else>--</span>
               </template>
