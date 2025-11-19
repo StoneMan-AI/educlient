@@ -27,7 +27,6 @@ function createNumberSVG(number, options = {}) {
       <text x="50%" y="50%" 
             font-family="Arial, sans-serif" 
             font-size="${fontSize}" 
-            font-weight="bold"
             fill="${fontColor}"
             text-anchor="middle" 
             dominant-baseline="middle">${number}</text>
@@ -80,7 +79,7 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
     dpi = 150, // 150DPI 更稳
     pageWidthPx = 1240, // A4宽度（约150DPI）
     pageHeightPx = 1754, // A4高度
-    gapPx = 12, // 行间距
+    gapPx = 20, // 行间距（图片之间的间距）
     tempDir = path.resolve(process.cwd(), 'backend', 'downloads', 'temp'),
     enableNumbering = true, // 是否启用编号
     numberStyle = {

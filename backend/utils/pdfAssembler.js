@@ -60,9 +60,9 @@ export async function assemblePdfFromPages(pageImagePaths, outputDir, outputFile
           scaledWidth = A4_HEIGHT_POINTS * imgAspectRatio
         }
         
-        // 计算居中位置
+        // 计算位置：水平居中，垂直从顶部50px开始
         const x = (A4_WIDTH_POINTS - scaledWidth) / 2
-        const y = (A4_HEIGHT_POINTS - scaledHeight) / 2
+        const y = 50  // 距离页面顶部50px
         
         // 添加A4页面
         doc.addPage()
