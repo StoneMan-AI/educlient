@@ -48,7 +48,7 @@ function createNumberSVG(number, options = {}) {
  */
 async function addNumberToImage(imageBuffer, number, options = {}) {
   const {
-    position = { x: 15, y: 15 },  // 左上角偏移
+    position = { x: 15, y: 20 },  // 左上角偏移：距离左边15px，距离顶部20px
     numberSize = 32
   } = options
   
@@ -88,7 +88,7 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
     enableNumbering = true, // 是否启用编号
     numberStyle = {
       fontSize: 32, // 字体大小（会根据DPI自动调整）
-      position: { x: 15, y: 15 } // 编号位置
+      position: { x: 15, y: 20 } // 编号位置：距离左边15px，距离顶部20px
     }
   } = options
 
@@ -115,8 +115,6 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
       }
       // 等比缩放到页面宽度
       const scale = pageWidthPx / meta.width
-      const w = Math.round(meta.width * scale)
-      const h = Math.round(meta.height * scale)
       let buffer = await sharp(imgPath).resize({ width: pageWidthPx }).toBuffer()
       
       // 如果启用编号，添加编号
@@ -126,6 +124,11 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
           numberSize: numberSize
         })
       }
+      
+      // 从处理后的buffer获取实际尺寸（确保准确性）
+      const processedMeta = await sharp(buffer).metadata()
+      const w = processedMeta.width || Math.round(meta.width * scale)
+      const h = processedMeta.height || Math.round(meta.height * scale)
       
       return { width: w, height: h, buffer }
     } catch (error) {
@@ -146,22 +149,35 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
     if (enableNumbering) {
       questionNumber++
     }
-    // 是否需要换页
-    const neededHeight = (currentPageItems.length === 0 ? 0 : gapPx) + height
-    if (currentY + neededHeight > pageHeightPx) {
-      // 输出当前页
+    
+    // 计算当前图片需要的总高度（包括间距）
+    const spacingBefore = currentPageItems.length === 0 ? 0 : gapPx
+    const totalNeededHeight = spacingBefore + height
+    
+    // 检查是否需要换页：如果当前页剩余空间不足，则换页
+    // 使用严格判断：currentY + totalNeededHeight 必须 <= pageHeightPx
+    if (currentY + totalNeededHeight > pageHeightPx) {
+      // 如果当前页有内容，先输出当前页
       if (currentPageItems.length > 0) {
         const pagePath = await flushPage(currentPageItems, pageWidthPx, currentY, tempDir, pages.length)
         pages.push(pagePath)
       }
-      // 新页
+      // 新页：重置位置和项目列表
       currentY = 0
       currentPageItems = []
     }
+    
+    // 计算当前图片的Y位置（新页第一张图片不需要上间距）
+    const y = currentPageItems.length === 0 ? 0 : currentY + gapPx
+    
     // 放入当前页
-    const y = currentY + (currentPageItems.length === 0 ? 0 : gapPx)
-    currentPageItems.push({ buffer, top: y, left: 0 })
+    currentPageItems.push({ buffer, top: y, left: 0, width, height })
+    
+    // 更新当前页已使用的高度（图片底部位置）
     currentY = y + height
+    
+    // 调试日志
+    console.log(`[ImageComposer] 图片 #${questionNumber - 1}: 高度=${height}px, Y位置=${y}px, 当前页高度=${currentY}px/${pageHeightPx}px`)
   }
 
   // 最后一页
