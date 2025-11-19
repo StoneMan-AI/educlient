@@ -17,7 +17,11 @@ function createNumberSVG(number, options = {}) {
     borderRadius = 4
   } = options
   
-  const textWidth = String(number).length * fontSize * 0.6 // 估算文本宽度
+  // 编号格式：数字 + 英文句号（如：1.）
+  const numberText = `${number}.`
+  
+  // 估算文本宽度（数字 + 句号）
+  const textWidth = numberText.length * fontSize * 0.6
   const svgWidth = Math.max(textWidth + padding * 2, fontSize + padding * 2)
   const svgHeight = fontSize + padding * 2
   
@@ -29,7 +33,7 @@ function createNumberSVG(number, options = {}) {
             font-size="${fontSize}" 
             fill="${fontColor}"
             text-anchor="middle" 
-            dominant-baseline="middle">${number}</text>
+            dominant-baseline="middle">${numberText}</text>
     </svg>
   `
   return Buffer.from(svg)
