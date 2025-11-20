@@ -473,6 +473,63 @@ const handleOneClickGenerate = async () => {
       return
     }
     
+    // 检查是否需要补充题目
+    if (res.can_supplement && questionIds.length < 15) {
+      const remainingCount = res.remaining_count || (15 - questionIds.length)
+      const downloadedCount = res.downloaded_count || 0
+      
+      try {
+        await ElMessageBox.confirm(
+          `已排除${downloadedCount}道已下载题目，剩余可用题目${questionIds.length}道，不足15道。\n\n请选择：\n1. 自动筛选剩余的${questionIds.length}道题目（您可手动勾选其他题目补充）\n2. 仍然一键生成试题组（将从已下载的题目中随机补充到15道）`,
+          '题目不足提示',
+          {
+            confirmButtonText: '仍然一键生成试题组',
+            cancelButtonText: '自动筛选剩余题目',
+            distinguishCancelAndClose: true,
+            type: 'warning'
+          }
+        )
+        
+        // 用户选择"仍然一键生成试题组"，从已下载的题目中补充
+        const supplementRes = await questionApi.supplementQuestions(
+          params.knowledge_point_id,
+          questionIds,
+          remainingCount
+        )
+        
+        const supplementIds = supplementRes.question_ids || []
+        const finalQuestionIds = [...questionIds, ...supplementIds]
+        
+        questionStore.selectedQuestions = finalQuestionIds
+        ElMessage.success(`已生成 ${finalQuestionIds.length} 道试题（包含${supplementIds.length}道已下载题目）`)
+        
+        // 跳转到第一道选中的题目
+        if (finalQuestionIds.length > 0) {
+          const firstIndex = questions.value.findIndex(q => q.id === finalQuestionIds[0])
+          if (firstIndex > -1) {
+            currentIndex.value = firstIndex
+            currentQuestion.value = questions.value[firstIndex]
+            questionStore.setCurrentQuestion(currentQuestion.value)
+          }
+        }
+      } catch (error) {
+        // 用户选择"自动筛选剩余题目"或取消
+        questionStore.selectedQuestions = questionIds
+        ElMessage.info(`已自动筛选 ${questionIds.length} 道题目，请手动勾选其他题目补充到15道`)
+        
+        // 跳转到第一道选中的题目
+        if (questionIds.length > 0) {
+          const firstIndex = questions.value.findIndex(q => q.id === questionIds[0])
+          if (firstIndex > -1) {
+            currentIndex.value = firstIndex
+            currentQuestion.value = questions.value[firstIndex]
+            questionStore.setCurrentQuestion(currentQuestion.value)
+          }
+        }
+      }
+      return
+    }
+    
     questionStore.selectedQuestions = questionIds
     ElMessage.success(`已生成 ${questionIds.length} 道试题`)
     

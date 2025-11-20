@@ -375,18 +375,18 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
       })
     }
     
-    // 检查VIP权限
+    // 检查VIP权限：只检查当前筛选条件中的年级是否有VIP权限
     const vipResult = await pool.query(
       `SELECT grade_ids FROM vip_memberships 
-       WHERE user_id = $1 AND status = 'active' AND end_date >= CURRENT_DATE`,
-      [userId]
+       WHERE user_id = $1 AND status = 'active' AND end_date >= CURRENT_DATE
+         AND $2 = ANY(grade_ids)`,
+      [userId, parseInt(grade_id)]
     )
     
-    const vipGrades = vipResult.rows.length > 0 ? vipResult.rows[0].grade_ids : []
-    
-    // 获取已下载的题目（VIP用户）
+    // 获取已下载的题目（VIP用户，只针对当前知识点）
     let downloadedQuestions = []
-    if (vipGrades.includes(parseInt(grade_id))) {
+    if (vipResult.rows.length > 0) {
+      // 用户有当前年级的VIP权限，获取该知识点下已下载的题目
       const downloadedResult = await pool.query(
         `SELECT question_id FROM user_downloaded_questions 
          WHERE user_id = $1 AND knowledge_point_id = $2`,
@@ -395,10 +395,14 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
       downloadedQuestions = downloadedResult.rows.map(r => r.question_id)
     }
     
-    // 查询题目，排除已下载的
+    // 查询题目，排除已下载的（使用参数化查询）
     const excludeClause = downloadedQuestions.length > 0 
-      ? `AND q.id NOT IN (${downloadedQuestions.join(',')})`
+      ? `AND NOT (q.id = ANY($4::int[]))`
       : ''
+    const queryParams = [grade_id, subject_id, knowledge_point_id]
+    if (downloadedQuestions.length > 0) {
+      queryParams.push(downloadedQuestions)
+    }
     
     // 按难度分组查询
     const easyResult = await pool.query(
@@ -407,7 +411,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 1 ${excludeClause}
        ORDER BY RANDOM() LIMIT 8`,
-      [grade_id, subject_id, knowledge_point_id]
+      queryParams
     )
     
     const mediumResult = await pool.query(
@@ -416,7 +420,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 2 ${excludeClause}
        ORDER BY RANDOM() LIMIT 5`,
-      [grade_id, subject_id, knowledge_point_id]
+      queryParams
     )
     
     const hardResult = await pool.query(
@@ -425,7 +429,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 3 ${excludeClause}
        ORDER BY RANDOM() LIMIT 2`,
-      [grade_id, subject_id, knowledge_point_id]
+      queryParams
     )
     
     const expertResult = await pool.query(
@@ -434,7 +438,7 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
        WHERE q.grade_id = $1 AND q.subject_id = $2 AND q.knowledge_point_id = $3
          AND q.status = '已发布' AND dl.level_value = 4 ${excludeClause}
        ORDER BY RANDOM() LIMIT 1`,
-      [grade_id, subject_id, knowledge_point_id]
+      queryParams
     )
     
     let questionIds = [
@@ -448,21 +452,72 @@ router.post('/generate-group', authenticate, async (req, res, next) => {
       questionIds.push(expertResult.rows[0].id)
     }
     
-    // 如果还是不足15道，只返回现有的
-    if (questionIds.length < 15) {
-      // 如果少于15道且是VIP用户，说明可能已全部下载
-      if (questionIds.length === 0 && downloadedQuestions.length > 0) {
-        return res.json({
-          success: true,
-          question_ids: [],
-          message: '该知识点下所有题目都已下载'
-        })
-      }
+    // 如果还是不足15道，检查是否可以从已下载的题目中补充
+    const remainingCount = 15 - questionIds.length
+    const hasDownloadedQuestions = downloadedQuestions.length > 0
+    
+    if (remainingCount > 0 && hasDownloadedQuestions) {
+      // 返回当前找到的题目，并标记需要用户选择或补充
+      return res.json({
+        success: true,
+        question_ids: questionIds,
+        remaining_count: remainingCount,
+        downloaded_count: downloadedQuestions.length,
+        total_available: questionIds.length,
+        message: `已排除${downloadedQuestions.length}道已下载题目，剩余可用题目${questionIds.length}道，不足15道`,
+        can_supplement: true // 标记可以补充
+      })
+    }
+    
+    // 如果少于15道且是VIP用户，说明可能已全部下载
+    if (questionIds.length === 0 && downloadedQuestions.length > 0) {
+      return res.json({
+        success: true,
+        question_ids: [],
+        message: '该知识点下所有题目都已下载'
+      })
     }
     
     res.json({
       success: true,
       question_ids: questionIds
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// 补充题目（从已下载的题目中随机选择）
+router.post('/supplement-questions', authenticate, async (req, res, next) => {
+  try {
+    const { knowledge_point_id, exclude_ids, count } = req.body
+    const userId = req.user.id
+    
+    if (!knowledge_point_id || !Array.isArray(exclude_ids) || !count) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供完整的参数'
+      })
+    }
+    
+    // 获取已下载的题目
+    const downloadedResult = await pool.query(
+      `SELECT question_id FROM user_downloaded_questions 
+       WHERE user_id = $1 AND knowledge_point_id = $2
+         AND NOT (question_id = ANY($3::int[]))`,
+      [userId, knowledge_point_id, exclude_ids.length > 0 ? exclude_ids : [0]]
+    )
+    
+    const downloadedQuestionIds = downloadedResult.rows.map(r => r.question_id)
+    
+    // 随机选择指定数量的题目
+    const shuffled = downloadedQuestionIds.sort(() => Math.random() - 0.5)
+    const selectedIds = shuffled.slice(0, Math.min(count, shuffled.length))
+    
+    res.json({
+      success: true,
+      question_ids: selectedIds,
+      total_available: downloadedQuestionIds.length
     })
   } catch (error) {
     next(error)

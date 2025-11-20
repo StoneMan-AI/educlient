@@ -51,6 +51,15 @@ export const questionApi = {
     return api.post('/questions/generate-group', params)
   },
   
+  // 补充题目（从已下载的题目中随机选择）
+  supplementQuestions(knowledgePointId, excludeIds, count) {
+    return api.post('/questions/supplement-questions', {
+      knowledge_point_id: knowledgePointId,
+      exclude_ids: excludeIds,
+      count: count
+    })
+  },
+  
   // 下载试题组（生成下载记录）
   downloadQuestionGroup(questionIds, orderNo) {
     const payload = { question_ids: questionIds }
