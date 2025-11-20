@@ -115,6 +115,7 @@
       :order-no="currentOrderNo"
       :amount="paymentAmount"
       :payment-type="paymentType"
+      :vip-tip="vipTip"
       @paid="handlePaymentPaid"
     />
   </div>
@@ -145,6 +146,7 @@ const paymentDialogVisible = ref(false)
 const currentOrderNo = ref('')
 const paymentAmount = ref(0)
 const paymentType = ref('answer') // 'answer' | 'download'
+const vipTip = ref('') // VIP权限提示信息
 const sortBy = ref('created_at_desc') // 默认按最新上传时间排序
 
 const isSelected = computed(() => {
@@ -363,19 +365,14 @@ const handleViewAnswer = async () => {
     const vipGrades = userStore.vipGrades
     
     if (!vipGrades.includes(gradeId)) {
-      // VIP用户访问非VIP权限年级，保留提示但使用单次付费模式
+      // VIP用户访问非VIP权限年级，直接使用单次付费模式
       const gradeName = currentQuestion.value.grade_name
+      
+      // 设置VIP提示信息
+      vipTip.value = `当前试题属于${gradeName}，您需要购买该年级的VIP权限才能免费查看或单次付费使用`
+      
+      // 直接调用单次付费API
       try {
-        await ElMessageBox.confirm(
-          `当前试题属于${gradeName}，您需要购买该年级的VIP权限才能查看答案。是否使用单次付费查看？`,
-          'VIP权限提示',
-          {
-            confirmButtonText: '单次付费查看',
-            cancelButtonText: '取消'
-          }
-        )
-        
-        // 用户确认后，调用单次付费API
         const res = await questionApi.viewAnswer(currentQuestion.value.id)
         if (res.need_payment) {
           // 需要支付
@@ -385,21 +382,24 @@ const handleViewAnswer = async () => {
           paymentDialogVisible.value = true
         } else {
           // 已支付，直接显示答案
+          vipTip.value = '' // 清除提示
           answerDialogVisible.value = true
         }
       } catch (error) {
-        // 用户取消，无需处理
-        return
+        vipTip.value = '' // 清除提示
+        ElMessage.error('查看答案失败：' + (error.response?.data?.message || error.message))
       }
       return
     }
     
     // VIP用户直接显示答案
+    vipTip.value = '' // 清除提示
     answerDialogVisible.value = true
     return
   }
   
   // 已登录用户（非VIP）
+  vipTip.value = '' // 清除提示
   try {
     const res = await questionApi.viewAnswer(currentQuestion.value.id)
     if (res.need_payment) {
@@ -419,6 +419,7 @@ const handleViewAnswer = async () => {
 
 const handlePaymentPaid = async () => {
   paymentDialogVisible.value = false
+  vipTip.value = '' // 清除提示
   
   // 刷新用户信息（可能VIP状态已更新）
   if (userStore.isLoggedIn) {
@@ -573,7 +574,7 @@ const handleDownload = async () => {
     return
   }
   
-  // VIP用户检查：如果选择的题目中包含非VIP权限年级的题目，先提示
+  // VIP用户检查：如果选择的题目中包含非VIP权限年级的题目，设置提示信息
   if (userStore.isVip) {
     const selectedQuestions = questionStore.selectedQuestions
       .map(id => questions.value.find(q => q.id === id))
@@ -586,23 +587,13 @@ const handleDownload = async () => {
       const nonVipGradeNames = [...new Set(nonVipQuestions.map(q => q.grade_name))]
       const gradeNamesText = nonVipGradeNames.join('、')
       
-      try {
-        await ElMessageBox.confirm(
-          `您选择的试题中包含${gradeNamesText}的题目，您需要购买该年级的VIP权限才能免费下载。是否使用单次付费下载？`,
-          'VIP权限提示',
-          {
-            confirmButtonText: '单次付费下载',
-            cancelButtonText: '取消'
-          }
-        )
-        // 用户确认后，继续下载流程（后端会检查VIP权限并返回支付订单）
-        await performDownload()
-      } catch (error) {
-        // 用户取消，无需处理
-        return
-      }
-      return
+      // 设置VIP提示信息
+      vipTip.value = `您选择的试题中包含${gradeNamesText}的题目，您需要购买该年级的VIP权限才能免费下载或单次付费使用`
+    } else {
+      vipTip.value = '' // 清除提示
     }
+  } else {
+    vipTip.value = '' // 清除提示
   }
   
   await performDownload()

@@ -60,6 +60,10 @@
           <el-button type="primary" @click="handleUpgradeVip">升级VIP</el-button>
         </div>
       </div>
+      
+      <div v-if="vipTip" class="vip-tip">
+        {{ vipTip }}
+      </div>
     </div>
     
     <template #footer>
@@ -92,6 +96,10 @@ const props = defineProps({
   paymentType: {
     type: String,
     default: 'answer' // 'answer' | 'download' | 'vip'
+  },
+  vipTip: {
+    type: String,
+    default: '' // VIP权限提示信息
   }
 })
 
@@ -350,6 +358,15 @@ onUnmounted(() => {
 .vip-option .el-button {
   margin-top: auto;
   width: 100%;
+}
+
+.vip-tip {
+  margin-top: 20px;
+  padding: 10px;
+  text-align: center;
+  color: #f56c6c;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* 响应式设计：小屏幕时改为纵向布局 */
