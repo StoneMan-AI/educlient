@@ -619,6 +619,25 @@ router.post('/download-group', authenticate, async (req, res, next) => {
       [userId, question_ids, meta.grade_id || null, meta.subject_id || null, meta.knowledge_point_id || null, isVip, emptyRecord.id]
     )
 
+    // VIP用户：将题目记录到"已拥有试题"中，避免在"一键生成试题组"时再次选择这些题目
+    if (isVip && meta.knowledge_point_id) {
+      try {
+        // 批量插入已下载题目记录（使用 ON CONFLICT 避免重复）
+        // 使用 unnest 函数批量插入数组
+        await pool.query(
+          `INSERT INTO user_downloaded_questions (user_id, question_id, knowledge_point_id)
+           SELECT $1, unnest($2::int[]), $3
+           ON CONFLICT (user_id, question_id) DO NOTHING`,
+          [userId, question_ids, meta.knowledge_point_id]
+        )
+        
+        console.log(`[Download] VIP用户 ${userId} 已记录 ${question_ids.length} 道题目到已拥有试题，知识点ID: ${meta.knowledge_point_id}`)
+      } catch (error) {
+        // 记录错误但不影响主流程
+        console.error(`[Download] 记录已下载题目失败:`, error)
+      }
+    }
+
     res.json({
       success: true,
       need_payment: false,
