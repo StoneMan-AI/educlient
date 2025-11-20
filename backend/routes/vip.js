@@ -263,7 +263,7 @@ router.get('/info', authenticate, async (req, res, next) => {
       [userId]
     )
     
-    // 合并所有有效的VIP记录
+    // 合并所有有效的VIP记录（用于兼容性）
     let combinedVip = null
     if (result.rows.length > 0) {
       const allGradeIds = []
@@ -291,7 +291,8 @@ router.get('/info', authenticate, async (req, res, next) => {
     
     res.json({
       success: true,
-      vip_info: combinedVip
+      vip_info: combinedVip, // 合并后的VIP信息（用于兼容性）
+      vip_records: result.rows // 所有VIP记录列表
     })
   } catch (error) {
     next(error)

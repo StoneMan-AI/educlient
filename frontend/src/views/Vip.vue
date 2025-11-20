@@ -48,28 +48,57 @@
               <span class="price-label">月费：</span>
               <span class="price-value">¥{{ currentPrice }}</span>
             </div>
-            <p class="price-desc">购买后立即生效，到期后自动续费</p>
+            <p class="price-desc">购买后立即生效，到期后不会自动扣费</p>
           </div>
           
           <el-divider />
           
-          <div class="vip-status" v-if="userStore.vipInfo">
+          <div class="vip-status" v-if="vipRecords.length > 0">
+            <h3>已拥有VIP记录</h3>
+            <el-tag v-if="userStore.isVip" type="success" style="margin-bottom: 15px;">VIP会员</el-tag>
+            <el-tag v-else type="info" style="margin-bottom: 15px;">非VIP</el-tag>
+            
+            <el-table
+              :data="vipRecords"
+              border
+              style="margin-top: 15px;"
+            >
+              <el-table-column prop="grade_ids" label="年级" min-width="200">
+                <template #default="scope">
+                  <el-tag 
+                    v-for="gid in scope.row.grade_ids" 
+                    :key="gid"
+                    style="margin-right: 8px; margin-bottom: 4px;"
+                  >
+                    {{ getGradeName(gid) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="start_date" label="开始时间" width="120">
+                <template #default="scope">
+                  {{ formatDate(scope.row.start_date) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="end_date" label="到期时间" width="120">
+                <template #default="scope">
+                  <span :class="{ 'expired-text': isExpired(scope.row.end_date) }">
+                    {{ formatDate(scope.row.end_date) }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="is_vip_active" label="状态" width="100">
+                <template #default="scope">
+                  <el-tag v-if="scope.row.is_vip_active" type="success">有效</el-tag>
+                  <el-tag v-else type="info">已过期</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+          
+          <div class="vip-status" v-else-if="userStore.isLoggedIn">
             <h3>当前VIP状态</h3>
-            <el-tag v-if="userStore.isVip" type="success">VIP会员</el-tag>
-            <el-tag v-else type="info">非VIP</el-tag>
-            <div v-if="userStore.vipInfo.grade_ids && userStore.vipInfo.grade_ids.length > 0">
-              <p>已拥有年级：</p>
-              <el-tag 
-                v-for="gid in userStore.vipInfo.grade_ids" 
-                :key="gid"
-                style="margin-right: 10px;"
-              >
-                {{ getGradeName(gid) }}
-              </el-tag>
-            </div>
-            <div v-if="userStore.vipInfo.end_date">
-              <p>到期时间：{{ userStore.vipInfo.end_date }}</p>
-            </div>
+            <el-tag type="info">非VIP</el-tag>
+            <p style="margin-top: 10px; color: #666;">您还没有购买VIP会员</p>
           </div>
           
           <el-divider />
@@ -94,7 +123,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
@@ -114,6 +143,7 @@ const useCombo = ref(false)
 const loading = ref(false)
 const paymentDialogVisible = ref(false)
 const orderNo = ref('')
+const vipRecords = ref([])
 
 const priceMap = ref({
   combo78: 0,
@@ -200,6 +230,39 @@ const getGradeName = (gradeId) => {
   return grade ? grade.name : ''
 }
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return dateStr
+  const pad = (num) => num.toString().padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+const isExpired = (endDate) => {
+  if (!endDate) return false
+  const end = new Date(endDate)
+  const now = new Date()
+  return end < now
+}
+
+const loadVipRecords = async () => {
+  if (!userStore.isLoggedIn) {
+    vipRecords.value = []
+    return
+  }
+  try {
+    const res = await vipApi.getVipInfo()
+    if (res.success && res.vip_records) {
+      vipRecords.value = res.vip_records || []
+    } else {
+      vipRecords.value = []
+    }
+  } catch (error) {
+    console.error('加载VIP记录失败:', error)
+    vipRecords.value = []
+  }
+}
+
 const handleGradeChange = () => {
   useCombo.value = false
 }
@@ -245,21 +308,35 @@ const handlePaymentSuccess = async () => {
   paymentDialogVisible.value = false
   ElMessage.success('VIP购买成功')
   await userStore.fetchUserInfo()
+  await loadVipRecords() // 重新加载VIP记录
 }
+
+// 监听用户登录状态变化，自动加载VIP记录
+watch(() => userStore.isLoggedIn, (isLoggedIn) => {
+  if (isLoggedIn) {
+    loadVipRecords()
+  } else {
+    vipRecords.value = []
+  }
+})
 
 onMounted(async () => {
   try {
-    await loadPricing()
-    const res = await questionApi.getGrades()
-    grades.value = res.grades || []
-    if (route.query.grade_id) {
-      const gradeId = parseInt(route.query.grade_id)
-      if (grades.value.find(g => g.id === gradeId)) {
-        selectedGrade.value = gradeId
-      }
-    }
+    await Promise.all([
+      loadPricing(),
+      questionApi.getGrades().then(res => {
+        grades.value = res.grades || []
+        if (route.query.grade_id) {
+          const gradeId = parseInt(route.query.grade_id)
+          if (grades.value.find(g => g.id === gradeId)) {
+            selectedGrade.value = gradeId
+          }
+        }
+      }),
+      loadVipRecords()
+    ])
   } catch (error) {
-    ElMessage.error('获取年级列表失败')
+    ElMessage.error('加载数据失败')
   }
 })
 </script>
@@ -354,6 +431,11 @@ onMounted(async () => {
 .vip-status p {
   margin: 10px 0;
   color: #666;
+}
+
+.expired-text {
+  color: #909399;
+  text-decoration: line-through;
 }
 
 .payment-section {
