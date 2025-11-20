@@ -363,20 +363,34 @@ const handleViewAnswer = async () => {
     const vipGrades = userStore.vipGrades
     
     if (!vipGrades.includes(gradeId)) {
+      // VIP用户访问非VIP权限年级，保留提示但使用单次付费模式
       const gradeName = currentQuestion.value.grade_name
-      ElMessageBox.confirm(
-        `当前试题属于${gradeName}，您需要购买该年级的VIP权限才能查看答案。是否前往购买？`,
-        'VIP权限提示',
-        {
-          confirmButtonText: '前往购买',
-          cancelButtonText: '取消'
+      try {
+        await ElMessageBox.confirm(
+          `当前试题属于${gradeName}，您需要购买该年级的VIP权限才能查看答案。是否使用单次付费查看？`,
+          'VIP权限提示',
+          {
+            confirmButtonText: '单次付费查看',
+            cancelButtonText: '取消'
+          }
+        )
+        
+        // 用户确认后，调用单次付费API
+        const res = await questionApi.viewAnswer(currentQuestion.value.id)
+        if (res.need_payment) {
+          // 需要支付
+          paymentType.value = 'answer'
+          currentOrderNo.value = res.order_no
+          paymentAmount.value = res.amount
+          paymentDialogVisible.value = true
+        } else {
+          // 已支付，直接显示答案
+          answerDialogVisible.value = true
         }
-      ).then(() => {
-        router.push({
-          name: 'Vip',
-          query: { grade_id: gradeId }
-        })
-      })
+      } catch (error) {
+        // 用户取消，无需处理
+        return
+      }
       return
     }
     
@@ -557,6 +571,38 @@ const handleDownload = async () => {
     ElMessage.warning('请先登录')
     router.push('/login')
     return
+  }
+  
+  // VIP用户检查：如果选择的题目中包含非VIP权限年级的题目，先提示
+  if (userStore.isVip) {
+    const selectedQuestions = questionStore.selectedQuestions
+      .map(id => questions.value.find(q => q.id === id))
+      .filter(Boolean)
+    
+    const vipGrades = userStore.vipGrades
+    const nonVipQuestions = selectedQuestions.filter(q => !vipGrades.includes(q.grade_id))
+    
+    if (nonVipQuestions.length > 0) {
+      const nonVipGradeNames = [...new Set(nonVipQuestions.map(q => q.grade_name))]
+      const gradeNamesText = nonVipGradeNames.join('、')
+      
+      try {
+        await ElMessageBox.confirm(
+          `您选择的试题中包含${gradeNamesText}的题目，您需要购买该年级的VIP权限才能免费下载。是否使用单次付费下载？`,
+          'VIP权限提示',
+          {
+            confirmButtonText: '单次付费下载',
+            cancelButtonText: '取消'
+          }
+        )
+        // 用户确认后，继续下载流程（后端会检查VIP权限并返回支付订单）
+        await performDownload()
+      } catch (error) {
+        // 用户取消，无需处理
+        return
+      }
+      return
+    }
   }
   
   await performDownload()
