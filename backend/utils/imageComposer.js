@@ -48,7 +48,7 @@ function createNumberSVG(number, options = {}) {
  */
 async function addNumberToImage(imageBuffer, number, options = {}) {
   const {
-    position = { x: 30, y: 25 },  // 左上角偏移：距离左边30px，距离顶部25px
+    position = { x: 30, y: 20 },  // 左上角偏移：距离左边30px，距离顶部25px
     numberSize = 32
   } = options
   
@@ -88,7 +88,7 @@ export async function composeQuestionImagesToPages(imagePaths, options = {}) {
     enableNumbering = true, // 是否启用编号
     numberStyle = {
       fontSize: 32, // 字体大小（会根据DPI自动调整）
-      position: { x: 30, y: 25 } // 编号位置：距离左边30px，距离顶部25px
+      position: { x: 30, y: 20 } // 编号位置：距离左边30px，距离顶部25px
     }
   } = options
 
