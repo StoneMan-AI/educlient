@@ -140,10 +140,12 @@
             </el-form>
 
             <div class="owned-actions">
-              <span class="owned-count">已选：{{ ownedSelected.length }}</span>
+              <span class="owned-count" :class="{ 'count-warning': ownedSelected.length > 15 }">
+                已选：{{ ownedSelected.length }}/15
+              </span>
               <el-button
                 type="success"
-                :disabled="ownedSelected.length === 0 || downloadLoading"
+                :disabled="ownedSelected.length === 0 || ownedSelected.length > 15 || downloadLoading"
                 :loading="downloadLoading"
                 @click="handleOwnedDownload"
               >
@@ -419,10 +421,12 @@ const fetchOwnedQuestions = async () => {
 
     const res = await vipApi.getOwnedQuestions(params)
     if (res.success) {
+      // 保存当前所有选中项的ID（包括其他页面的）
       const selectedIds = new Set(ownedSelected.value.map(item => item.id))
       ownedQuestions.value = res.questions || []
       ownedTotal.value = res.total || 0
 
+      // 恢复当前页面的选中状态（不修改ownedSelected，保持跨页选中状态）
       await nextTick()
       if (ownedTableRef.value) {
         ownedTableRef.value.clearSelection()
@@ -432,7 +436,7 @@ const fetchOwnedQuestions = async () => {
           }
         })
       }
-      ownedSelected.value = ownedQuestions.value.filter(item => selectedIds.has(item.id))
+      // 注意：这里不更新ownedSelected，保持跨页选中状态
     }
   } catch (error) {
     ElMessage.error('加载已拥有试题失败：' + (error.response?.data?.message || error.message))
@@ -569,6 +573,13 @@ const handleOwnedDownload = async () => {
     ElMessage.warning('请先勾选试题')
     return
   }
+  
+  // 检查题目数量（最多15道）
+  if (ownedSelected.value.length > 15) {
+    ElMessage.warning(`最多只能选择15道试题，当前已选择${ownedSelected.value.length}道，请取消部分选择`)
+    return
+  }
+  
   pendingDownloadIds.value = ownedSelected.value.map(item => item.id)
   await createDownloadRecord()
 }
@@ -673,6 +684,10 @@ onMounted(async () => {
   font-size: 14px;
   color: #409eff;
   font-weight: bold;
+}
+
+.owned-count.count-warning {
+  color: #f56c6c;
 }
 
 .owned-pagination {
