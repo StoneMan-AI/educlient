@@ -489,18 +489,42 @@ router.post('/download-group', authenticate, async (req, res, next) => {
       })
     }
 
-    const vipResult = await pool.query(
-      `SELECT vm.* FROM vip_memberships vm
-       INNER JOIN questions q ON q.grade_id = ANY(vm.grade_ids)
-       WHERE vm.user_id = $1 AND vm.status = 'active' 
-         AND vm.end_date >= CURRENT_DATE
-         AND q.id = ANY($2::int[])
-       GROUP BY vm.id
-       HAVING COUNT(DISTINCT q.grade_id) = COUNT(DISTINCT q.id)`,
-      [userId, question_ids]
+    // 先获取所有选中题目的年级ID（去重）
+    const questionGradesResult = await pool.query(
+      `SELECT DISTINCT grade_id FROM questions WHERE id = ANY($1::int[])`,
+      [question_ids]
     )
+    const questionGradeIds = questionGradesResult.rows.map(row => row.grade_id).filter(id => id !== null)
     
-    const isVip = vipResult.rows.length > 0
+    // 如果题目没有年级ID，则不需要VIP检查
+    if (questionGradeIds.length === 0) {
+      console.log('[Download] 题目没有年级ID，跳过VIP检查')
+      // 继续后续流程，但不作为VIP处理
+    }
+    
+    // 检查用户是否有VIP权限覆盖所有题目的年级
+    let isVip = false
+    if (questionGradeIds.length > 0) {
+      const vipResult = await pool.query(
+        `SELECT vm.* FROM vip_memberships vm
+         WHERE vm.user_id = $1 AND vm.status = 'active' 
+           AND vm.end_date >= CURRENT_DATE
+           AND $2::int[] <@ vm.grade_ids`,
+        [userId, questionGradeIds]
+      )
+      
+      // 检查VIP权限是否覆盖了所有题目的年级
+      // $2::int[] <@ vm.grade_ids 表示 questionGradeIds 是 vm.grade_ids 的子集
+      isVip = vipResult.rows.length > 0
+      
+      console.log('[Download] VIP检查:', {
+        userId,
+        questionGradeIds,
+        vipResultCount: vipResult.rows.length,
+        isVip,
+        vipGradeIds: vipResult.rows.map(r => r.grade_ids)
+      })
+    }
     
     let order = null
     if (!isVip) {

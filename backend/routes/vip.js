@@ -22,49 +22,71 @@ async function completeOrderPayment(order, { transactionId = null, isMock = fals
 
   if (order.type === 'vip' && order.grade_ids) {
     const userId = order.user_id
+    const orderGradeIds = order.grade_ids.sort((a, b) => a - b) // 排序以便比较
 
-    const existingVip = await pool.query(
+    // 获取用户所有有效的VIP记录
+    const allVipsResult = await pool.query(
       `SELECT * FROM vip_memberships 
        WHERE user_id = $1 AND status = 'active' 
-         AND grade_ids && $2::int[]`,
-      [userId, order.grade_ids]
+       ORDER BY created_at ASC`,
+      [userId]
     )
 
-    if (existingVip.rows.length > 0) {
-      const vip = existingVip.rows[0]
-      const newEndDate = new Date(vip.end_date)
+    // 查找是否有完全匹配的VIP记录（年级ID完全相同）
+    let matchedVip = null
+    for (const vip of allVipsResult.rows) {
+      const vipGradeIds = vip.grade_ids.sort((a, b) => a - b)
+      // 检查是否完全匹配（数组长度相同且每个元素都相同）
+      if (vipGradeIds.length === orderGradeIds.length &&
+          vipGradeIds.every((id, index) => id === orderGradeIds[index])) {
+        matchedVip = vip
+        break
+      }
+    }
+
+    if (matchedVip) {
+      // 情况1：完全匹配，延长该VIP记录的时间
+      const newEndDate = new Date(matchedVip.end_date)
       newEndDate.setMonth(newEndDate.getMonth() + 1)
 
       await pool.query(
         `UPDATE vip_memberships 
          SET end_date = $1, updated_at = NOW()
          WHERE id = $2`,
-        [newEndDate, vip.id]
+        [newEndDate, matchedVip.id]
       )
+
+      // 更新订单关联
+      await pool.query(
+        'UPDATE orders SET vip_membership_id = $1 WHERE order_no = $2',
+        [matchedVip.id, order.order_no]
+      )
+
+      console.log(`[VIP] 延长VIP时间: 用户${userId}, VIP记录${matchedVip.id}, 年级${orderGradeIds.join(',')}`)
     } else {
+      // 情况2：没有完全匹配，创建新的VIP记录
+      // 注意：即使购买的年级是已有VIP的子集，也创建新的VIP记录
+      // 这样用户可以同时拥有多个VIP记录，每个记录对应不同的年级组合
       const startDate = new Date()
       const endDate = new Date()
       endDate.setMonth(endDate.getMonth() + 1)
 
-      await pool.query(
+      const insertResult = await pool.query(
         `INSERT INTO vip_memberships (user_id, grade_ids, start_date, end_date, status)
-         VALUES ($1, $2, $3, $4, 'active')`,
-        [userId, order.grade_ids, startDate, endDate]
+         VALUES ($1, $2, $3, $4, 'active')
+         RETURNING id`,
+        [userId, orderGradeIds, startDate, endDate]
       )
-    }
 
-    const vipResult = await pool.query(
-      `SELECT id FROM vip_memberships 
-       WHERE user_id = $1 AND grade_ids && $2::int[] AND status = 'active'
-       ORDER BY created_at DESC LIMIT 1`,
-      [userId, order.grade_ids]
-    )
+      const newVipId = insertResult.rows[0].id
 
-    if (vipResult.rows.length > 0) {
+      // 更新订单关联
       await pool.query(
         'UPDATE orders SET vip_membership_id = $1 WHERE order_no = $2',
-        [vipResult.rows[0].id, order.order_no]
+        [newVipId, order.order_no]
       )
+
+      console.log(`[VIP] 创建新VIP记录: 用户${userId}, VIP记录${newVipId}, 年级${orderGradeIds.join(',')}`)
     }
   }
 
@@ -429,53 +451,64 @@ router.get('/order-status/:orderNo', authenticate, async (req, res, next) => {
     
     const order = orderResult.rows[0]
     
-    // 如果订单已支付，更新VIP状态
+    // 如果订单已支付，更新VIP状态（使用与completeOrderPayment相同的逻辑）
     if (order.status === 'paid' && order.type === 'vip' && order.grade_ids) {
-      // 检查用户是否已有该年级的VIP
-      const existingVip = await pool.query(
+      const orderGradeIds = order.grade_ids.sort((a, b) => a - b)
+
+      // 获取用户所有有效的VIP记录
+      const allVipsResult = await pool.query(
         `SELECT * FROM vip_memberships 
          WHERE user_id = $1 AND status = 'active' 
-           AND grade_ids && $2::int[]`,
-        [userId, order.grade_ids]
+         ORDER BY created_at ASC`,
+        [userId]
       )
-      
-      if (existingVip.rows.length > 0) {
-        // 延长VIP时间
-        const vip = existingVip.rows[0]
-        const newEndDate = new Date(vip.end_date)
+
+      // 查找是否有完全匹配的VIP记录
+      let matchedVip = null
+      for (const vip of allVipsResult.rows) {
+        const vipGradeIds = vip.grade_ids.sort((a, b) => a - b)
+        if (vipGradeIds.length === orderGradeIds.length &&
+            vipGradeIds.every((id, index) => id === orderGradeIds[index])) {
+          matchedVip = vip
+          break
+        }
+      }
+
+      if (matchedVip) {
+        // 完全匹配，延长该VIP记录的时间
+        const newEndDate = new Date(matchedVip.end_date)
         newEndDate.setMonth(newEndDate.getMonth() + 1)
-        
+
         await pool.query(
           `UPDATE vip_memberships 
            SET end_date = $1, updated_at = NOW()
            WHERE id = $2`,
-          [newEndDate, vip.id]
+          [newEndDate, matchedVip.id]
+        )
+
+        await pool.query(
+          'UPDATE orders SET vip_membership_id = $1 WHERE id = $2',
+          [matchedVip.id, order.id]
         )
       } else {
-        // 创建新的VIP记录
+        // 没有完全匹配，创建新的VIP记录
+        // 注意：即使购买的年级是已有VIP的子集，也创建新的VIP记录
         const startDate = new Date()
         const endDate = new Date()
         endDate.setMonth(endDate.getMonth() + 1)
-        
-        await pool.query(
+
+        const insertResult = await pool.query(
           `INSERT INTO vip_memberships (user_id, grade_ids, start_date, end_date, status)
-           VALUES ($1, $2, $3, $4, 'active')`,
-          [userId, order.grade_ids, startDate, endDate]
+           VALUES ($1, $2, $3, $4, 'active')
+           RETURNING id`,
+          [userId, orderGradeIds, startDate, endDate]
         )
-      }
-      
-      // 更新订单的VIP关联
-      const vipResult = await pool.query(
-        `SELECT id FROM vip_memberships 
-         WHERE user_id = $1 AND grade_ids && $2::int[] AND status = 'active'
-         ORDER BY created_at DESC LIMIT 1`,
-        [userId, order.grade_ids]
-      )
-      
-      if (vipResult.rows.length > 0) {
+
+        const newVipId = insertResult.rows[0].id
+
         await pool.query(
           'UPDATE orders SET vip_membership_id = $1 WHERE id = $2',
-          [vipResult.rows[0].id, order.id]
+          [newVipId, order.id]
         )
       }
     }
