@@ -160,7 +160,6 @@
             v-loading="ownedLoading"
             border
             height="480"
-            @select="handleOwnedSelect"
             @selection-change="handleOwnedSelectionChange"
           >
             <el-table-column type="selection" width="55" />
@@ -448,32 +447,6 @@ const fetchOwnedQuestions = async () => {
 const handleOwnedPageChange = (page) => {
   ownedPage.value = page
   fetchOwnedQuestions()
-}
-
-const handleOwnedSelect = (selection, row) => {
-  const currentlySelectedIds = new Set(ownedSelected.value.map(item => item.id))
-  const rowSelected = selection.some(item => item.id === row.id)
-
-  if (rowSelected) {
-    if (!currentlySelectedIds.has(row.id)) {
-      const rowData = ownedQuestions.value.find(item => item.id === row.id)
-      if (rowData) {
-        const newSelection = [...ownedSelected.value, rowData]
-        if (newSelection.length > 15) {
-          ElMessage.warning('最多选择15道试题')
-          if (ownedTableRef.value) {
-            nextTick(() => {
-              ownedTableRef.value.toggleRowSelection(row, false)
-            })
-          }
-          return
-        }
-        ownedSelected.value = newSelection
-      }
-    }
-  } else if (currentlySelectedIds.has(row.id)) {
-    ownedSelected.value = ownedSelected.value.filter(item => item.id !== row.id)
-  }
 }
 
 const handleOwnedSelectionChange = (selection) => {
