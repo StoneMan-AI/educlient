@@ -339,7 +339,7 @@ router.get('/info', authenticate, async (req, res, next) => {
 // 创建VIP订单
 router.post('/order', authenticate, async (req, res, next) => {
   try {
-    const { grade_ids, amount, duration_months, special_type } = req.body
+    const { grade_ids, amount, duration_months } = req.body
     const userId = req.user.id
     
     if (!grade_ids || !Array.isArray(grade_ids) || grade_ids.length === 0) {
@@ -367,13 +367,12 @@ router.post('/order', authenticate, async (req, res, next) => {
     
     // 验证价格（从数据库获取正确价格）
     const { getVipPrice, validatePrice } = await import('../utils/pricing.js')
-    const correctPrice = await getVipPrice(grade_ids, durationMonths, special_type || null)
+    const correctPrice = await getVipPrice(grade_ids, durationMonths)
     
     // 验证前端传来的价格是否正确（防止篡改）
     if (!await validatePrice('vip', amount, { 
       gradeIds: grade_ids, 
-      durationMonths: durationMonths,
-      specialType: special_type || null
+      durationMonths: durationMonths
     })) {
       return res.status(400).json({
         success: false,
@@ -384,8 +383,6 @@ router.post('/order', authenticate, async (req, res, next) => {
     const orderNo = `VIP_${Date.now()}_${userId}`
     
     // 创建订单（使用数据库中的正确价格，而不是前端传来的价格）
-    // 注意：这里暂时不存储duration_months和special_type，因为orders表没有这些字段
-    // 可以通过end_date - start_date来计算duration_months
     await pool.query(
       `INSERT INTO orders (user_id, order_no, type, amount, grade_ids, status)
        VALUES ($1, $2, 'vip', $3, $4, 'pending')`,

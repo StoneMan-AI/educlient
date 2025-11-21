@@ -34,13 +34,13 @@ INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration
 INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
 ('vip_combo_101112_3m', 'vip', ARRAY[10, 11, 12], 39.00, 3, '高中三年组合VIP（3个月套餐）', FALSE);
 
--- 中考VIP：30元（使用特殊config_key标识，grade_ids为[7,8,9]）
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_zhongkao_3m', 'vip', ARRAY[7, 8, 9], 30.00, 3, '中考VIP（3个月套餐）', FALSE);
+-- 中考VIP：30元（grade_id=13）
+INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+('vip_grade_13_3m', 'vip', 13, 30.00, 3, '中考VIP（3个月套餐）', FALSE);
 
--- 高考VIP：60元（使用特殊config_key标识，grade_ids为[10,11,12]）
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_gaokao_3m', 'vip', ARRAY[10, 11, 12], 60.00, 3, '高考VIP（3个月套餐）', FALSE);
+-- 高考VIP：60元（grade_id=14）
+INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+('vip_grade_14_3m', 'vip', 14, 60.00, 3, '高考VIP（3个月套餐）', FALSE);
 
 -- 6个月套餐价格（正式环境）
 -- 小学1-3年级：每个年级25元
@@ -75,13 +75,13 @@ INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration
 INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
 ('vip_combo_101112_6m', 'vip', ARRAY[10, 11, 12], 75.00, 6, '高中三年组合VIP（6个月套餐）', FALSE);
 
--- 中考VIP：55元
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_zhongkao_6m', 'vip', ARRAY[7, 8, 9], 55.00, 6, '中考VIP（6个月套餐）', FALSE);
+-- 中考VIP：55元（grade_id=13）
+INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+('vip_grade_13_6m', 'vip', 13, 55.00, 6, '中考VIP（6个月套餐）', FALSE);
 
--- 高考VIP：99元
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_gaokao_6m', 'vip', ARRAY[10, 11, 12], 99.00, 6, '高考VIP（6个月套餐）', FALSE);
+-- 高考VIP：99元（grade_id=14）
+INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+('vip_grade_14_6m', 'vip', 14, 99.00, 6, '高考VIP（6个月套餐）', FALSE);
 
 -- 测试环境价格配置（统一0.01元，用于测试）
 -- 3个月套餐（测试环境）
@@ -101,9 +101,12 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 
 INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
 ('vip_combo_789_3m_test', 'vip', ARRAY[7, 8, 9], 0.01, 3, '初中三年组合VIP（3个月套餐，测试）', TRUE),
-('vip_combo_101112_3m_test', 'vip', ARRAY[10, 11, 12], 0.01, 3, '高中三年组合VIP（3个月套餐，测试）', TRUE),
-('vip_zhongkao_3m_test', 'vip', ARRAY[7, 8, 9], 0.01, 3, '中考VIP（3个月套餐，测试）', TRUE),
-('vip_gaokao_3m_test', 'vip', ARRAY[10, 11, 12], 0.01, 3, '高考VIP（3个月套餐，测试）', TRUE);
+('vip_combo_101112_3m_test', 'vip', ARRAY[10, 11, 12], 0.01, 3, '高中三年组合VIP（3个月套餐，测试）', TRUE);
+
+-- 中考VIP和高考VIP（测试环境，grade_id=13和14）
+INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+('vip_grade_13_3m_test', 'vip', 13, 0.01, 3, '中考VIP（3个月套餐，测试）', TRUE),
+('vip_grade_14_3m_test', 'vip', 14, 0.01, 3, '高考VIP（3个月套餐，测试）', TRUE);
 
 -- 6个月套餐（测试环境）
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
@@ -122,7 +125,10 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 
 INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
 ('vip_combo_789_6m_test', 'vip', ARRAY[7, 8, 9], 0.01, 6, '初中三年组合VIP（6个月套餐，测试）', TRUE),
-('vip_combo_101112_6m_test', 'vip', ARRAY[10, 11, 12], 0.01, 6, '高中三年组合VIP（6个月套餐，测试）', TRUE),
-('vip_zhongkao_6m_test', 'vip', ARRAY[7, 8, 9], 0.01, 6, '中考VIP（6个月套餐，测试）', TRUE),
-('vip_gaokao_6m_test', 'vip', ARRAY[10, 11, 12], 0.01, 6, '高考VIP（6个月套餐，测试）', TRUE);
+('vip_combo_101112_6m_test', 'vip', ARRAY[10, 11, 12], 0.01, 6, '高中三年组合VIP（6个月套餐，测试）', TRUE);
+
+-- 中考VIP和高考VIP（测试环境，grade_id=13和14）
+INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+('vip_grade_13_6m_test', 'vip', 13, 0.01, 6, '中考VIP（6个月套餐，测试）', TRUE),
+('vip_grade_14_6m_test', 'vip', 14, 0.01, 6, '高考VIP（6个月套餐，测试）', TRUE);
 

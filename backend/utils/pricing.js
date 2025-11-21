@@ -13,32 +13,12 @@ const isTestMode = process.env.PAYMENT_MODE === 'test' ||
  * 获取VIP价格
  * @param {number|number[]} gradeIds - 年级ID或年级ID数组
  * @param {number} durationMonths - 套餐时长（3或6个月），默认为3
- * @param {string} specialType - 特殊类型（'zhongkao'或'gaokao'），可选
  * @returns {Promise<number>} 价格（元）
  */
-export async function getVipPrice(gradeIds, durationMonths = 3, specialType = null) {
+export async function getVipPrice(gradeIds, durationMonths = 3) {
   try {
     const testMode = isTestMode
     const duration = durationMonths || 3 // 默认为3个月
-    
-    // 如果是特殊类型（中考或高考）
-    if (specialType === 'zhongkao' || specialType === 'gaokao') {
-      const configKey = testMode 
-        ? `vip_${specialType}_${duration}m_test`
-        : `vip_${specialType}_${duration}m`
-      
-      const result = await pool.query(
-        `SELECT amount FROM pricing_config 
-         WHERE config_key = $1
-           AND is_active = TRUE
-         LIMIT 1`,
-        [configKey]
-      )
-      
-      if (result.rows.length > 0) {
-        return parseFloat(result.rows[0].amount)
-      }
-    }
     
     // 如果是组合套餐
     if (Array.isArray(gradeIds) && gradeIds.length > 1) {
@@ -166,8 +146,7 @@ export async function validatePrice(type, amount, params = {}) {
     if (type === 'vip') {
       expectedAmount = await getVipPrice(
         params.gradeIds || params.grade_id,
-        params.durationMonths || 3,
-        params.specialType || null
+        params.durationMonths || 3
       )
     } else if (type === 'view_answer') {
       expectedAmount = await getAnswerPrice(params.isFirstView || false)
@@ -212,18 +191,12 @@ export async function getAllPricing() {
       if (row.config_type === 'vip') {
         const durationKey = row.duration_months === 6 ? '6m' : '3m'
         
-        if (row.config_key.includes('zhongkao')) {
-          // 中考VIP
-          pricing.vip[durationKey].zhongkao = parseFloat(row.amount)
-        } else if (row.config_key.includes('gaokao')) {
-          // 高考VIP
-          pricing.vip[durationKey].gaokao = parseFloat(row.amount)
-        } else if (row.grade_ids) {
+        if (row.grade_ids) {
           // 组合套餐
           const key = row.grade_ids.sort().join('_')
           pricing.vip[durationKey][`combo_${key}`] = parseFloat(row.amount)
         } else if (row.grade_id) {
-          // 单年级
+          // 单年级（包括中考G13和高考G14）
           pricing.vip[durationKey][`grade_${row.grade_id}`] = parseFloat(row.amount)
         }
       } else if (row.config_type === 'answer') {

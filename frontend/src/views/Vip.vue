@@ -34,15 +34,8 @@
               </el-radio>
             </el-radio-group>
             
-            <!-- 中考VIP和高考VIP选项 -->
-            <div v-if="showSpecialOption" class="special-option">
-              <el-checkbox v-model="useSpecial" @change="handleSpecialChange">
-                {{ specialOptionLabel }}
-              </el-checkbox>
-            </div>
-            
-            <!-- 组合套餐选项（仅初中和高中） -->
-            <div v-if="showComboOption && !useSpecial" class="combo-option">
+            <!-- 组合套餐选项（仅初中和高中，且不是中考或高考） -->
+            <div v-if="showComboOption" class="combo-option">
               <el-checkbox v-model="useCombo" @change="handleComboChange">购买组合套餐</el-checkbox>
             </div>
           </div>
@@ -186,7 +179,6 @@ const grades = ref([])
 const selectedGrade = ref(null)
 const selectedDuration = ref(3) // 默认选择3个月套餐
 const useCombo = ref(false)
-const useSpecial = ref(false) // 中考VIP或高考VIP
 const loading = ref(false)
 const paymentDialogVisible = ref(false)
 const orderNo = ref('')
@@ -212,43 +204,16 @@ const loadPricing = async () => {
   }
 }
 
-// 显示特殊选项（中考VIP或高考VIP）
-const showSpecialOption = computed(() => {
+// 显示组合套餐选项（仅初中和高中，且不是中考或高考）
+const showComboOption = computed(() => {
   if (!selectedGrade.value) return false
   const grade = grades.value.find(g => g.id === selectedGrade.value)
   if (!grade) return false
   const code = grade.code
-  // 初中年级显示中考VIP选项
-  if (code === 'G7' || code === 'G8' || code === 'G9') {
-    return true
+  // 中考（G13）和高考（G14）不显示组合套餐选项
+  if (code === 'G13' || code === 'G14') {
+    return false
   }
-  // 高中年级显示高考VIP选项
-  if (code === 'G10' || code === 'G11' || code === 'G12') {
-    return true
-  }
-  return false
-})
-
-const specialOptionLabel = computed(() => {
-  if (!selectedGrade.value) return ''
-  const grade = grades.value.find(g => g.id === selectedGrade.value)
-  if (!grade) return ''
-  const code = grade.code
-  if (code === 'G7' || code === 'G8' || code === 'G9') {
-    return '购买中考VIP'
-  }
-  if (code === 'G10' || code === 'G11' || code === 'G12') {
-    return '购买高考VIP'
-  }
-  return ''
-})
-
-// 显示组合套餐选项（仅初中和高中，且不是特殊选项）
-const showComboOption = computed(() => {
-  if (!selectedGrade.value || useSpecial.value) return false
-  const grade = grades.value.find(g => g.id === selectedGrade.value)
-  if (!grade) return false
-  const code = grade.code
   return code === 'G7' || code === 'G8' || code === 'G9' || 
          code === 'G10' || code === 'G11' || code === 'G12'
 })
@@ -257,18 +222,6 @@ const showComboOption = computed(() => {
 const price3m = computed(() => {
   if (!selectedGrade.value) return 0
   const pricing = priceMap.value['3m'] || {}
-  
-  if (useSpecial.value) {
-    const grade = grades.value.find(g => g.id === selectedGrade.value)
-    if (!grade) return 0
-    const code = grade.code
-    if (code === 'G7' || code === 'G8' || code === 'G9') {
-      return pricing.zhongkao || 0
-    }
-    if (code === 'G10' || code === 'G11' || code === 'G12') {
-      return pricing.gaokao || 0
-    }
-  }
   
   if (useCombo.value) {
     const grade = grades.value.find(g => g.id === selectedGrade.value)
@@ -291,18 +244,6 @@ const price3m = computed(() => {
 const price6m = computed(() => {
   if (!selectedGrade.value) return 0
   const pricing = priceMap.value['6m'] || {}
-  
-  if (useSpecial.value) {
-    const grade = grades.value.find(g => g.id === selectedGrade.value)
-    if (!grade) return 0
-    const code = grade.code
-    if (code === 'G7' || code === 'G8' || code === 'G9') {
-      return pricing.zhongkao || 0
-    }
-    if (code === 'G10' || code === 'G11' || code === 'G12') {
-      return pricing.gaokao || 0
-    }
-  }
   
   if (useCombo.value) {
     const grade = grades.value.find(g => g.id === selectedGrade.value)
@@ -376,20 +317,11 @@ const loadVipRecords = async () => {
 
 const handleGradeChange = () => {
   useCombo.value = false
-  useSpecial.value = false
   selectedDuration.value = 3 // 重置为3个月
 }
 
 const handleComboChange = () => {
-  if (useCombo.value) {
-    useSpecial.value = false
-  }
-}
-
-const handleSpecialChange = () => {
-  if (useSpecial.value) {
-    useCombo.value = false
-  }
+  // 组合套餐切换时无需特殊处理
 }
 
 const handlePurchase = async () => {
@@ -410,22 +342,8 @@ const handlePurchase = async () => {
   loading.value = true
   try {
     let gradeIds = [selectedGrade.value]
-    let specialType = null
     
-    if (useSpecial.value) {
-      // 中考VIP或高考VIP
-      const grade = grades.value.find(g => g.id === selectedGrade.value)
-      if (grade) {
-        const code = grade.code
-        if (code === 'G7' || code === 'G8' || code === 'G9') {
-          gradeIds = [7, 8, 9].map(id => grades.value.find(g => g.code === `G${id}`)?.id).filter(Boolean)
-          specialType = 'zhongkao'
-        } else if (code === 'G10' || code === 'G11' || code === 'G12') {
-          gradeIds = [10, 11, 12].map(id => grades.value.find(g => g.code === `G${id}`)?.id).filter(Boolean)
-          specialType = 'gaokao'
-        }
-      }
-    } else if (useCombo.value) {
+    if (useCombo.value) {
       // 组合套餐
       const grade = grades.value.find(g => g.id === selectedGrade.value)
       if (grade) {
@@ -437,12 +355,12 @@ const handlePurchase = async () => {
         }
       }
     }
+    // 如果选择的是中考（G13）或高考（G14），gradeIds就是[13]或[14]，无需特殊处理
     
     const res = await vipApi.createVipOrder({
       grade_ids: gradeIds,
       amount: currentPrice.value,
-      duration_months: selectedDuration.value,
-      special_type: specialType
+      duration_months: selectedDuration.value
     })
     orderNo.value = res.order_no
     paymentDialogVisible.value = true
