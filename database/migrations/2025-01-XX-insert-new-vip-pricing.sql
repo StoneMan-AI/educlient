@@ -6,15 +6,35 @@
 
 -- 如果grades表中还没有G13和G14，先添加它们（使用DO块确保正确执行）
 DO $$
+DECLARE
+  g13_id INTEGER;
+  g14_id INTEGER;
 BEGIN
   -- 插入中考年级（G13），如果不存在
   IF NOT EXISTS (SELECT 1 FROM grades WHERE code = 'G13') THEN
-    INSERT INTO grades (name, code, sort_order) VALUES ('中考', 'G13', 13);
+    INSERT INTO grades (name, code, sort_order) VALUES ('中考', 'G13', 13) RETURNING id INTO g13_id;
+    RAISE NOTICE '已添加中考年级（G13），ID: %', g13_id;
+  ELSE
+    SELECT id INTO g13_id FROM grades WHERE code = 'G13';
+    RAISE NOTICE '中考年级（G13）已存在，ID: %', g13_id;
   END IF;
   
   -- 插入高考年级（G14），如果不存在
   IF NOT EXISTS (SELECT 1 FROM grades WHERE code = 'G14') THEN
-    INSERT INTO grades (name, code, sort_order) VALUES ('高考', 'G14', 14);
+    INSERT INTO grades (name, code, sort_order) VALUES ('高考', 'G14', 14) RETURNING id INTO g14_id;
+    RAISE NOTICE '已添加高考年级（G14），ID: %', g14_id;
+  ELSE
+    SELECT id INTO g14_id FROM grades WHERE code = 'G14';
+    RAISE NOTICE '高考年级（G14）已存在，ID: %', g14_id;
+  END IF;
+  
+  -- 验证：如果G13或G14不存在，抛出异常
+  IF NOT EXISTS (SELECT 1 FROM grades WHERE code = 'G13') THEN
+    RAISE EXCEPTION '错误：无法添加G13（中考）年级，请检查grades表结构';
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM grades WHERE code = 'G14') THEN
+    RAISE EXCEPTION '错误：无法添加G14（高考）年级，请检查grades表结构';
   END IF;
 END $$;
 
