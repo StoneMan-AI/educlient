@@ -356,12 +356,12 @@ router.post('/order', authenticate, async (req, res, next) => {
       })
     }
     
-    // 验证套餐时长（必须是3或6个月）
+    // 验证套餐时长（必须是1、3或6个月）
     const durationMonths = duration_months || 3
-    if (durationMonths !== 3 && durationMonths !== 6) {
+    if (durationMonths !== 1 && durationMonths !== 3 && durationMonths !== 6) {
       return res.status(400).json({
         success: false,
-        message: '套餐时长必须是3个月或6个月'
+        message: '套餐时长必须是1个月、3个月或6个月'
       })
     }
     

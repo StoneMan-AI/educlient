@@ -12,7 +12,7 @@ const isTestMode = process.env.PAYMENT_MODE === 'test' ||
 /**
  * 获取VIP价格
  * @param {number|number[]} gradeIds - 年级ID或年级ID数组
- * @param {number} durationMonths - 套餐时长（3或6个月），默认为3
+ * @param {number} durationMonths - 套餐时长（1、3或6个月），默认为3
  * @returns {Promise<number>} 价格（元）
  */
 export async function getVipPrice(gradeIds, durationMonths = 3) {
@@ -173,13 +173,14 @@ export async function getAllPricing() {
     const result = await pool.query(
       `SELECT config_key, config_type, grade_id, grade_ids, amount, duration_months, description
        FROM pricing_config 
-       WHERE is_test_mode = $1 AND is_active = TRUE AND duration_months IN (3, 6)
+       WHERE is_test_mode = $1 AND is_active = TRUE AND duration_months IN (1, 3, 6)
        ORDER BY config_type, duration_months, grade_id NULLS LAST`,
       [testMode]
     )
     
     const pricing = {
       vip: {
+        '1m': {}, // 1个月套餐
         '3m': {}, // 3个月套餐
         '6m': {}  // 6个月套餐
       },
@@ -189,7 +190,12 @@ export async function getAllPricing() {
     
     result.rows.forEach(row => {
       if (row.config_type === 'vip') {
-        const durationKey = row.duration_months === 6 ? '6m' : '3m'
+        let durationKey = '3m'
+        if (row.duration_months === 1) {
+          durationKey = '1m'
+        } else if (row.duration_months === 6) {
+          durationKey = '6m'
+        }
         
         if (row.grade_ids) {
           // 组合套餐

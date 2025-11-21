@@ -1,10 +1,53 @@
--- 插入新的VIP价格配置（3个月和6个月套餐）
+-- ============================================================================
+-- 完整数据库迁移文件
 -- 创建时间: 2025-01-XX
+-- 说明: 此文件整合了所有数据库迁移操作，按正确顺序执行
+-- ============================================================================
 
--- 注意：执行此文件前，请先执行 database/migrations/2025-01-XX-add-zhongkao-gaokao-grades.sql
--- 或者确保grades表中已存在G13（中考）和G14（高考）年级
+-- ============================================================================
+-- 第一部分：修改download_records表结构
+-- ============================================================================
+-- 允许下载记录的PDF路径为空，以便异步生成后回填
+-- 执行时间: 2025-11-11
 
--- 如果grades表中还没有G13和G14，先添加它们（使用DO块确保正确执行）
+ALTER TABLE download_records
+    ALTER COLUMN question_pdf_path DROP NOT NULL;
+
+ALTER TABLE download_records
+    ALTER COLUMN answer_pdf_path DROP NOT NULL;
+
+-- ============================================================================
+-- 第二部分：添加VIP套餐时长字段
+-- ============================================================================
+-- 添加duration_months字段到pricing_config表，支持3个月和6个月套餐
+-- 执行时间: 2025-01-XX
+
+-- 添加duration_months字段
+ALTER TABLE pricing_config 
+ADD COLUMN IF NOT EXISTS duration_months INTEGER DEFAULT 1 CHECK (duration_months IN (1, 3, 6));
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_pricing_config_duration ON pricing_config(duration_months);
+
+-- 将现有的VIP价格配置标记为1个月（旧版，后续会禁用）
+UPDATE pricing_config 
+SET duration_months = 1 
+WHERE config_type = 'vip' AND duration_months IS NULL;
+
+-- 禁用旧版VIP价格配置（is_active = FALSE）
+UPDATE pricing_config 
+SET is_active = FALSE 
+WHERE config_type = 'vip' AND duration_months = 1;
+
+-- 添加字段注释
+COMMENT ON COLUMN pricing_config.duration_months IS 'VIP套餐时长（月），1=旧版月费，3=3个月套餐，6=6个月套餐';
+
+-- ============================================================================
+-- 第三部分：添加中考（G13）和高考（G14）年级
+-- ============================================================================
+-- 添加中考和高考作为独立年级
+-- 执行时间: 2025-01-XX
+
 DO $$
 DECLARE
   g13_id INTEGER;
@@ -38,30 +81,59 @@ BEGIN
   END IF;
 END $$;
 
+-- ============================================================================
+-- 第四部分：插入新的VIP价格配置（3个月和6个月套餐）
+-- ============================================================================
+-- 插入所有新的VIP价格配置，包括单年级和组合套餐
+-- 执行时间: 2025-01-XX
+
+-- ----------------------------------------------------------------------------
 -- 3个月套餐价格（正式环境）
+-- ----------------------------------------------------------------------------
+
 -- 小学1-3年级：每个年级15元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_1_3m', 'vip', 1, 15.00, 3, '小学一年级VIP（3个月套餐）', FALSE),
 ('vip_grade_2_3m', 'vip', 2, 15.00, 3, '小学二年级VIP（3个月套餐）', FALSE),
-('vip_grade_3_3m', 'vip', 3, 15.00, 3, '小学三年级VIP（3个月套餐）', FALSE);
+('vip_grade_3_3m', 'vip', 3, 15.00, 3, '小学三年级VIP（3个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 小学4-6年级：每个年级19元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_4_3m', 'vip', 4, 19.00, 3, '小学四年级VIP（3个月套餐）', FALSE),
 ('vip_grade_5_3m', 'vip', 5, 19.00, 3, '小学五年级VIP（3个月套餐）', FALSE),
-('vip_grade_6_3m', 'vip', 6, 19.00, 3, '小学六年级VIP（3个月套餐）', FALSE);
+('vip_grade_6_3m', 'vip', 6, 19.00, 3, '小学六年级VIP（3个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 初一、初二、初三：每个年级25元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_7_3m', 'vip', 7, 25.00, 3, '初中一年级VIP（3个月套餐）', FALSE),
 ('vip_grade_8_3m', 'vip', 8, 25.00, 3, '初中二年级VIP（3个月套餐）', FALSE),
-('vip_grade_9_3m', 'vip', 9, 25.00, 3, '初中三年级VIP（3个月套餐）', FALSE);
+('vip_grade_9_3m', 'vip', 9, 25.00, 3, '初中三年级VIP（3个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 高一、高二、高三：每个年级25元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_10_3m', 'vip', 10, 25.00, 3, '高中一年级VIP（3个月套餐）', FALSE),
 ('vip_grade_11_3m', 'vip', 11, 25.00, 3, '高中二年级VIP（3个月套餐）', FALSE),
-('vip_grade_12_3m', 'vip', 12, 25.00, 3, '高中三年级VIP（3个月套餐）', FALSE);
+('vip_grade_12_3m', 'vip', 12, 25.00, 3, '高中三年级VIP（3个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 初中三年组合：39元（使用G7、G8、G9的实际ID）
 DO $$
@@ -145,30 +217,53 @@ BEGIN
     is_active = TRUE;
 END $$;
 
+-- ----------------------------------------------------------------------------
 -- 6个月套餐价格（正式环境）
+-- ----------------------------------------------------------------------------
+
 -- 小学1-3年级：每个年级25元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_1_6m', 'vip', 1, 25.00, 6, '小学一年级VIP（6个月套餐）', FALSE),
 ('vip_grade_2_6m', 'vip', 2, 25.00, 6, '小学二年级VIP（6个月套餐）', FALSE),
-('vip_grade_3_6m', 'vip', 3, 25.00, 6, '小学三年级VIP（6个月套餐）', FALSE);
+('vip_grade_3_6m', 'vip', 3, 25.00, 6, '小学三年级VIP（6个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 小学4-6年级：每个年级36元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_4_6m', 'vip', 4, 36.00, 6, '小学四年级VIP（6个月套餐）', FALSE),
 ('vip_grade_5_6m', 'vip', 5, 36.00, 6, '小学五年级VIP（6个月套餐）', FALSE),
-('vip_grade_6_6m', 'vip', 6, 36.00, 6, '小学六年级VIP（6个月套餐）', FALSE);
+('vip_grade_6_6m', 'vip', 6, 36.00, 6, '小学六年级VIP（6个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 初一、初二、初三：每个年级45元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_7_6m', 'vip', 7, 45.00, 6, '初中一年级VIP（6个月套餐）', FALSE),
 ('vip_grade_8_6m', 'vip', 8, 45.00, 6, '初中二年级VIP（6个月套餐）', FALSE),
-('vip_grade_9_6m', 'vip', 9, 45.00, 6, '初中三年级VIP（6个月套餐）', FALSE);
+('vip_grade_9_6m', 'vip', 9, 45.00, 6, '初中三年级VIP（6个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 高一、高二、高三：每个年级45元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_10_6m', 'vip', 10, 45.00, 6, '高中一年级VIP（6个月套餐）', FALSE),
 ('vip_grade_11_6m', 'vip', 11, 45.00, 6, '高中二年级VIP（6个月套餐）', FALSE),
-('vip_grade_12_6m', 'vip', 12, 45.00, 6, '高中三年级VIP（6个月套餐）', FALSE);
+('vip_grade_12_6m', 'vip', 12, 45.00, 6, '高中三年级VIP（6个月套餐）', FALSE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
 -- 初中三年组合：75元（使用G7、G8、G9的实际ID）
 DO $$
@@ -252,7 +347,10 @@ BEGIN
     is_active = TRUE;
 END $$;
 
+-- ----------------------------------------------------------------------------
 -- 测试环境价格配置（统一0.01元，用于测试）
+-- ----------------------------------------------------------------------------
+
 -- 3个月套餐（测试环境）
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
 ('vip_grade_1_3m_test', 'vip', 1, 0.01, 3, '小学一年级VIP（3个月套餐，测试）', TRUE),
@@ -266,9 +364,14 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 ('vip_grade_9_3m_test', 'vip', 9, 0.01, 3, '初中三年级VIP（3个月套餐，测试）', TRUE),
 ('vip_grade_10_3m_test', 'vip', 10, 0.01, 3, '高中一年级VIP（3个月套餐，测试）', TRUE),
 ('vip_grade_11_3m_test', 'vip', 11, 0.01, 3, '高中二年级VIP（3个月套餐，测试）', TRUE),
-('vip_grade_12_3m_test', 'vip', 12, 0.01, 3, '高中三年级VIP（3个月套餐，测试）', TRUE);
+('vip_grade_12_3m_test', 'vip', 12, 0.01, 3, '高中三年级VIP（3个月套餐，测试）', TRUE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
--- 初中三年组合（测试环境，使用G7、G8、G9的实际ID）
+-- 初中三年组合（测试环境，3个月套餐，使用G7、G8、G9的实际ID）
 DO $$
 DECLARE
   g7_id INTEGER;
@@ -291,7 +394,7 @@ BEGIN
     is_active = TRUE;
 END $$;
 
--- 高中三年组合（测试环境，使用G10、G11、G12的实际ID）
+-- 高中三年组合（测试环境，3个月套餐，使用G10、G11、G12的实际ID）
 DO $$
 DECLARE
   g10_id INTEGER;
@@ -314,7 +417,7 @@ BEGIN
     is_active = TRUE;
 END $$;
 
--- 中考VIP和高考VIP（测试环境，使用G13和G14的实际ID）
+-- 中考VIP和高考VIP（测试环境，3个月套餐，使用G13和G14的实际ID）
 DO $$
 DECLARE
   g13_id INTEGER;
@@ -348,9 +451,13 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 ('vip_grade_9_6m_test', 'vip', 9, 0.01, 6, '初中三年级VIP（6个月套餐，测试）', TRUE),
 ('vip_grade_10_6m_test', 'vip', 10, 0.01, 6, '高中一年级VIP（6个月套餐，测试）', TRUE),
 ('vip_grade_11_6m_test', 'vip', 11, 0.01, 6, '高中二年级VIP（6个月套餐，测试）', TRUE),
-('vip_grade_12_6m_test', 'vip', 12, 0.01, 6, '高中三年级VIP（6个月套餐，测试）', TRUE);
+('vip_grade_12_6m_test', 'vip', 12, 0.01, 6, '高中三年级VIP（6个月套餐，测试）', TRUE)
+ON CONFLICT (config_key) DO UPDATE SET 
+  amount = EXCLUDED.amount,
+  duration_months = EXCLUDED.duration_months,
+  description = EXCLUDED.description,
+  is_active = TRUE;
 
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
 -- 初中三年组合（测试环境，6个月套餐，使用G7、G8、G9的实际ID）
 DO $$
 DECLARE
@@ -397,7 +504,7 @@ BEGIN
     is_active = TRUE;
 END $$;
 
--- 中考VIP和高考VIP（测试环境，使用G13和G14的实际ID）
+-- 中考VIP和高考VIP（测试环境，6个月套餐，使用G13和G14的实际ID）
 DO $$
 DECLARE
   g13_id INTEGER;
@@ -416,5 +523,13 @@ BEGIN
     duration_months = EXCLUDED.duration_months,
     description = EXCLUDED.description,
     is_active = TRUE;
+END $$;
+
+-- ============================================================================
+-- 迁移完成
+-- ============================================================================
+DO $$
+BEGIN
+  RAISE NOTICE '数据库迁移完成！';
 END $$;
 

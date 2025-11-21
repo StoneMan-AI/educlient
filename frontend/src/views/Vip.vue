@@ -10,7 +10,19 @@
       <el-main>
         <el-card>
           <div class="vip-info">
-            <h3>VIP会员权益</h3>
+            <div class="vip-info-header">
+              <h3>VIP会员权益</h3>
+              <el-button 
+                type="primary" 
+                size="large" 
+                @click="handlePurchase" 
+                :loading="loading"
+                :disabled="!selectedGrade"
+                class="purchase-btn"
+              >
+                立即购买
+              </el-button>
+            </div>
             <ul>
               <li>无限查阅对应年级所有学科的试题和答案</li>
               <li>无限制下载对应年级的试题和试题答案</li>
@@ -36,17 +48,42 @@
             
             <!-- 组合套餐选项（仅初中和高中，且不是中考或高考） -->
             <div v-if="showComboOption" class="combo-option">
-              <el-checkbox v-model="useCombo" @change="handleComboChange">购买组合套餐</el-checkbox>
+              <el-checkbox 
+                v-model="useCombo" 
+                @change="handleComboChange"
+                :class="{ 'combo-checkbox-unchecked': !useCombo }"
+              >
+                购买组合套餐
+              </el-checkbox>
               <p class="combo-desc">{{ comboDesc }}</p>
             </div>
           </div>
           
           <el-divider />
           
-          <!-- 套餐选择（3个月和6个月） -->
+          <!-- 套餐选择（1个月、3个月和6个月） -->
           <div v-if="selectedGrade" class="package-selection">
             <h3>选择套餐</h3>
             <div class="package-cards">
+              <!-- 1个月套餐 -->
+              <div 
+                class="package-card" 
+                :class="{ 'selected': selectedDuration === 1 }"
+                @click="selectedDuration = 1"
+              >
+                <div class="package-header">
+                  <h4>1个月套餐</h4>
+                </div>
+                <div class="package-price">
+                  <span class="price-value">¥{{ price1m }}</span>
+                  <span class="price-unit">/1个月</span>
+                </div>
+                <div class="package-monthly">
+                  <span class="monthly-label">平均每月：</span>
+                  <span class="monthly-value">¥{{ monthlyPrice1m }}</span>
+                </div>
+              </div>
+              
               <!-- 3个月套餐 -->
               <div 
                 class="package-card" 
@@ -139,14 +176,6 @@
             <el-tag type="info">非VIP</el-tag>
             <p style="margin-top: 10px; color: #666;">您还没有购买VIP会员</p>
           </div>
-          
-          <el-divider />
-          
-          <div class="payment-section">
-            <el-button type="primary" size="large" @click="handlePurchase" :loading="loading">
-              立即购买
-            </el-button>
-          </div>
         </el-card>
       </el-main>
     </el-container>
@@ -186,6 +215,7 @@ const orderNo = ref('')
 const vipRecords = ref([])
 
 const priceMap = ref({
+  '1m': {}, // 1个月套餐价格
   '3m': {}, // 3个月套餐价格
   '6m': {}  // 6个月套餐价格
 })
@@ -195,6 +225,7 @@ const loadPricing = async () => {
     const res = await pricingApi.getAllPricing()
     if (res.success && res.pricing && res.pricing.vip) {
       priceMap.value = {
+        '1m': res.pricing.vip['1m'] || {},
         '3m': res.pricing.vip['3m'] || {},
         '6m': res.pricing.vip['6m'] || {}
       }
@@ -225,24 +256,51 @@ const comboDesc = computed(() => {
   const grade = grades.value.find(g => g.id === selectedGrade.value)
   if (!grade) return ''
   const code = grade.code
+  const pricing1m = priceMap.value['1m'] || {}
   const pricing3m = priceMap.value['3m'] || {}
   const pricing6m = priceMap.value['6m'] || {}
   
   if (code === 'G7' || code === 'G8' || code === 'G9') {
+    const price1m = pricing1m.combo_7_8_9 || 0
     const price3m = pricing3m.combo_7_8_9 || 0
     const price6m = pricing6m.combo_7_8_9 || 0
+    const monthly1m = price1m > 0 ? (price1m / 1).toFixed(2) : '0.00'
     const monthly3m = price3m > 0 ? (price3m / 3).toFixed(2) : '0.00'
     const monthly6m = price6m > 0 ? (price6m / 6).toFixed(2) : '0.00'
-    return `超值套餐，同时拥有初一、初二、初三三个年级VIP权限，3个月套餐仅¥${price3m}（平均每月不到¥${monthly3m}），6个月套餐仅¥${price6m}（平均每月不到¥${monthly6m}）`
+    return `超值套餐，同时拥有初一、初二、初三三个年级VIP权限，1个月套餐仅¥${price1m}（平均每月¥${monthly1m}），3个月套餐仅¥${price3m}（平均每月不到¥${monthly3m}），6个月套餐仅¥${price6m}（平均每月不到¥${monthly6m}）`
   }
   if (code === 'G10' || code === 'G11' || code === 'G12') {
+    const price1m = pricing1m.combo_10_11_12 || 0
     const price3m = pricing3m.combo_10_11_12 || 0
     const price6m = pricing6m.combo_10_11_12 || 0
+    const monthly1m = price1m > 0 ? (price1m / 1).toFixed(2) : '0.00'
     const monthly3m = price3m > 0 ? (price3m / 3).toFixed(2) : '0.00'
     const monthly6m = price6m > 0 ? (price6m / 6).toFixed(2) : '0.00'
-    return `超值套餐，同时拥有高一、高二、高三三个年级VIP权限，3个月套餐仅¥${price3m}（平均每月不到¥${monthly3m}），6个月套餐仅¥${price6m}（平均每月不到¥${monthly6m}）`
+    return `超值套餐，同时拥有高一、高二、高三三个年级VIP权限，1个月套餐仅¥${price1m}（平均每月¥${monthly1m}），3个月套餐仅¥${price3m}（平均每月不到¥${monthly3m}），6个月套餐仅¥${price6m}（平均每月不到¥${monthly6m}）`
   }
   return ''
+})
+
+// 获取当前选择的价格（1个月）
+const price1m = computed(() => {
+  if (!selectedGrade.value) return 0
+  const pricing = priceMap.value['1m'] || {}
+  
+  if (useCombo.value) {
+    const grade = grades.value.find(g => g.id === selectedGrade.value)
+    if (!grade) return 0
+    const code = grade.code
+    if (code === 'G7' || code === 'G8' || code === 'G9') {
+      return pricing.combo_7_8_9 || 0
+    }
+    if (code === 'G10' || code === 'G11' || code === 'G12') {
+      return pricing.combo_10_11_12 || 0
+    }
+  }
+  
+  const grade = grades.value.find(g => g.id === selectedGrade.value)
+  if (!grade) return 0
+  return pricing[`grade_${grade.id}`] || 0
 })
 
 // 获取当前选择的价格（3个月）
@@ -289,6 +347,11 @@ const price6m = computed(() => {
   return pricing[`grade_${grade.id}`] || 0
 })
 
+// 每月价格（1个月套餐）
+const monthlyPrice1m = computed(() => {
+  return (price1m.value / 1).toFixed(2)
+})
+
 // 每月价格（3个月套餐）
 const monthlyPrice3m = computed(() => {
   return (price3m.value / 3).toFixed(2)
@@ -301,7 +364,9 @@ const monthlyPrice6m = computed(() => {
 
 // 当前选择的价格
 const currentPrice = computed(() => {
-  return selectedDuration.value === 6 ? price6m.value : price3m.value
+  if (selectedDuration.value === 1) return price1m.value
+  if (selectedDuration.value === 6) return price6m.value
+  return price3m.value
 })
 
 const getGradeName = (gradeId) => {
@@ -344,7 +409,7 @@ const loadVipRecords = async () => {
 
 const handleGradeChange = () => {
   useCombo.value = false
-  selectedDuration.value = 3 // 重置为3个月
+  selectedDuration.value = 3 // 默认选中3个月套餐
 }
 
 const handleComboChange = () => {
@@ -450,6 +515,21 @@ onMounted(async () => {
 
 .header-content h2 {
   margin: 0;
+}
+
+.vip-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.vip-info-header h3 {
+  margin: 0;
+}
+
+.purchase-btn {
+  margin-left: auto;
 }
 
 .vip-info ul {
@@ -566,6 +646,24 @@ onMounted(async () => {
   padding: 15px;
   background: #f5f7fa;
   border-radius: 4px;
+}
+
+.combo-checkbox-unchecked :deep(.el-checkbox__label) {
+  color: #ff9800;
+  font-weight: 500;
+}
+
+.combo-checkbox-unchecked :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: #ff9800;
+  border-color: #ff9800;
+}
+
+.combo-checkbox-unchecked :deep(.el-checkbox__input .el-checkbox__inner) {
+  border-color: #ff9800;
+}
+
+.combo-checkbox-unchecked :deep(.el-checkbox__input:hover .el-checkbox__inner) {
+  border-color: #ff9800;
 }
 
 .combo-desc {
