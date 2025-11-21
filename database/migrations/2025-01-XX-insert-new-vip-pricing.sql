@@ -63,21 +63,87 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 ('vip_grade_11_3m', 'vip', 11, 25.00, 3, '高中二年级VIP（3个月套餐）', FALSE),
 ('vip_grade_12_3m', 'vip', 12, 25.00, 3, '高中三年级VIP（3个月套餐）', FALSE);
 
--- 初中三年组合：39元
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_combo_789_3m', 'vip', ARRAY[7, 8, 9], 39.00, 3, '初中三年组合VIP（3个月套餐）', FALSE);
+-- 初中三年组合：39元（使用G7、G8、G9的实际ID）
+DO $$
+DECLARE
+  g7_id INTEGER;
+  g8_id INTEGER;
+  g9_id INTEGER;
+BEGIN
+  SELECT id INTO g7_id FROM grades WHERE code = 'G7';
+  SELECT id INTO g8_id FROM grades WHERE code = 'G8';
+  SELECT id INTO g9_id FROM grades WHERE code = 'G9';
+  IF g7_id IS NULL OR g8_id IS NULL OR g9_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G7、G8或G9年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_789_3m', 'vip', ARRAY[g7_id, g8_id, g9_id], 39.00, 3, '初中三年组合VIP（3个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 高中三年组合：39元
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_combo_101112_3m', 'vip', ARRAY[10, 11, 12], 39.00, 3, '高中三年组合VIP（3个月套餐）', FALSE);
+-- 高中三年组合：39元（使用G10、G11、G12的实际ID）
+DO $$
+DECLARE
+  g10_id INTEGER;
+  g11_id INTEGER;
+  g12_id INTEGER;
+BEGIN
+  SELECT id INTO g10_id FROM grades WHERE code = 'G10';
+  SELECT id INTO g11_id FROM grades WHERE code = 'G11';
+  SELECT id INTO g12_id FROM grades WHERE code = 'G12';
+  IF g10_id IS NULL OR g11_id IS NULL OR g12_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G10、G11或G12年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_101112_3m', 'vip', ARRAY[g10_id, g11_id, g12_id], 39.00, 3, '高中三年组合VIP（3个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 中考VIP：30元（grade_id=13）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
-('vip_grade_13_3m', 'vip', 13, 30.00, 3, '中考VIP（3个月套餐）', FALSE);
+-- 中考VIP：30元（使用G13的实际ID）
+DO $$
+DECLARE
+  g13_id INTEGER;
+BEGIN
+  SELECT id INTO g13_id FROM grades WHERE code = 'G13';
+  IF g13_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G13（中考）年级，请先执行添加年级的SQL';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_grade_13_3m', 'vip', g13_id, 30.00, 3, '中考VIP（3个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 高考VIP：60元（grade_id=14）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
-('vip_grade_14_3m', 'vip', 14, 60.00, 3, '高考VIP（3个月套餐）', FALSE);
+-- 高考VIP：60元（使用G14的实际ID）
+DO $$
+DECLARE
+  g14_id INTEGER;
+BEGIN
+  SELECT id INTO g14_id FROM grades WHERE code = 'G14';
+  IF g14_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G14（高考）年级，请先执行添加年级的SQL';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_grade_14_3m', 'vip', g14_id, 60.00, 3, '高考VIP（3个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
 -- 6个月套餐价格（正式环境）
 -- 小学1-3年级：每个年级25元
@@ -104,21 +170,87 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 ('vip_grade_11_6m', 'vip', 11, 45.00, 6, '高中二年级VIP（6个月套餐）', FALSE),
 ('vip_grade_12_6m', 'vip', 12, 45.00, 6, '高中三年级VIP（6个月套餐）', FALSE);
 
--- 初中三年组合：75元
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_combo_789_6m', 'vip', ARRAY[7, 8, 9], 75.00, 6, '初中三年组合VIP（6个月套餐）', FALSE);
+-- 初中三年组合：75元（使用G7、G8、G9的实际ID）
+DO $$
+DECLARE
+  g7_id INTEGER;
+  g8_id INTEGER;
+  g9_id INTEGER;
+BEGIN
+  SELECT id INTO g7_id FROM grades WHERE code = 'G7';
+  SELECT id INTO g8_id FROM grades WHERE code = 'G8';
+  SELECT id INTO g9_id FROM grades WHERE code = 'G9';
+  IF g7_id IS NULL OR g8_id IS NULL OR g9_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G7、G8或G9年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_789_6m', 'vip', ARRAY[g7_id, g8_id, g9_id], 75.00, 6, '初中三年组合VIP（6个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 高中三年组合：75元
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_combo_101112_6m', 'vip', ARRAY[10, 11, 12], 75.00, 6, '高中三年组合VIP（6个月套餐）', FALSE);
+-- 高中三年组合：75元（使用G10、G11、G12的实际ID）
+DO $$
+DECLARE
+  g10_id INTEGER;
+  g11_id INTEGER;
+  g12_id INTEGER;
+BEGIN
+  SELECT id INTO g10_id FROM grades WHERE code = 'G10';
+  SELECT id INTO g11_id FROM grades WHERE code = 'G11';
+  SELECT id INTO g12_id FROM grades WHERE code = 'G12';
+  IF g10_id IS NULL OR g11_id IS NULL OR g12_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G10、G11或G12年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_101112_6m', 'vip', ARRAY[g10_id, g11_id, g12_id], 75.00, 6, '高中三年组合VIP（6个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 中考VIP：55元（grade_id=13）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
-('vip_grade_13_6m', 'vip', 13, 55.00, 6, '中考VIP（6个月套餐）', FALSE);
+-- 中考VIP：55元（使用G13的实际ID）
+DO $$
+DECLARE
+  g13_id INTEGER;
+BEGIN
+  SELECT id INTO g13_id FROM grades WHERE code = 'G13';
+  IF g13_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G13（中考）年级，请先执行添加年级的SQL';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_grade_13_6m', 'vip', g13_id, 55.00, 6, '中考VIP（6个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 高考VIP：99元（grade_id=14）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
-('vip_grade_14_6m', 'vip', 14, 99.00, 6, '高考VIP（6个月套餐）', FALSE);
+-- 高考VIP：99元（使用G14的实际ID）
+DO $$
+DECLARE
+  g14_id INTEGER;
+BEGIN
+  SELECT id INTO g14_id FROM grades WHERE code = 'G14';
+  IF g14_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G14（高考）年级，请先执行添加年级的SQL';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_grade_14_6m', 'vip', g14_id, 99.00, 6, '高考VIP（6个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
 -- 测试环境价格配置（统一0.01元，用于测试）
 -- 3个月套餐（测试环境）
@@ -136,14 +268,72 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 ('vip_grade_11_3m_test', 'vip', 11, 0.01, 3, '高中二年级VIP（3个月套餐，测试）', TRUE),
 ('vip_grade_12_3m_test', 'vip', 12, 0.01, 3, '高中三年级VIP（3个月套餐，测试）', TRUE);
 
-INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_combo_789_3m_test', 'vip', ARRAY[7, 8, 9], 0.01, 3, '初中三年组合VIP（3个月套餐，测试）', TRUE),
-('vip_combo_101112_3m_test', 'vip', ARRAY[10, 11, 12], 0.01, 3, '高中三年组合VIP（3个月套餐，测试）', TRUE);
+-- 初中三年组合（测试环境，使用G7、G8、G9的实际ID）
+DO $$
+DECLARE
+  g7_id INTEGER;
+  g8_id INTEGER;
+  g9_id INTEGER;
+BEGIN
+  SELECT id INTO g7_id FROM grades WHERE code = 'G7';
+  SELECT id INTO g8_id FROM grades WHERE code = 'G8';
+  SELECT id INTO g9_id FROM grades WHERE code = 'G9';
+  IF g7_id IS NULL OR g8_id IS NULL OR g9_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G7、G8或G9年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_789_3m_test', 'vip', ARRAY[g7_id, g8_id, g9_id], 0.01, 3, '初中三年组合VIP（3个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 中考VIP和高考VIP（测试环境，grade_id=13和14）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
-('vip_grade_13_3m_test', 'vip', 13, 0.01, 3, '中考VIP（3个月套餐，测试）', TRUE),
-('vip_grade_14_3m_test', 'vip', 14, 0.01, 3, '高考VIP（3个月套餐，测试）', TRUE);
+-- 高中三年组合（测试环境，使用G10、G11、G12的实际ID）
+DO $$
+DECLARE
+  g10_id INTEGER;
+  g11_id INTEGER;
+  g12_id INTEGER;
+BEGIN
+  SELECT id INTO g10_id FROM grades WHERE code = 'G10';
+  SELECT id INTO g11_id FROM grades WHERE code = 'G11';
+  SELECT id INTO g12_id FROM grades WHERE code = 'G12';
+  IF g10_id IS NULL OR g11_id IS NULL OR g12_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G10、G11或G12年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_101112_3m_test', 'vip', ARRAY[g10_id, g11_id, g12_id], 0.01, 3, '高中三年组合VIP（3个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
+
+-- 中考VIP和高考VIP（测试环境，使用G13和G14的实际ID）
+DO $$
+DECLARE
+  g13_id INTEGER;
+  g14_id INTEGER;
+BEGIN
+  SELECT id INTO g13_id FROM grades WHERE code = 'G13';
+  SELECT id INTO g14_id FROM grades WHERE code = 'G14';
+  IF g13_id IS NULL OR g14_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G13或G14年级，请先执行添加年级的SQL';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_grade_13_3m_test', 'vip', g13_id, 0.01, 3, '中考VIP（3个月套餐，测试）', TRUE),
+  ('vip_grade_14_3m_test', 'vip', g14_id, 0.01, 3, '高考VIP（3个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
 -- 6个月套餐（测试环境）
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
@@ -161,11 +351,70 @@ INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_
 ('vip_grade_12_6m_test', 'vip', 12, 0.01, 6, '高中三年级VIP（6个月套餐，测试）', TRUE);
 
 INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
-('vip_combo_789_6m_test', 'vip', ARRAY[7, 8, 9], 0.01, 6, '初中三年组合VIP（6个月套餐，测试）', TRUE),
-('vip_combo_101112_6m_test', 'vip', ARRAY[10, 11, 12], 0.01, 6, '高中三年组合VIP（6个月套餐，测试）', TRUE);
+-- 初中三年组合（测试环境，6个月套餐，使用G7、G8、G9的实际ID）
+DO $$
+DECLARE
+  g7_id INTEGER;
+  g8_id INTEGER;
+  g9_id INTEGER;
+BEGIN
+  SELECT id INTO g7_id FROM grades WHERE code = 'G7';
+  SELECT id INTO g8_id FROM grades WHERE code = 'G8';
+  SELECT id INTO g9_id FROM grades WHERE code = 'G9';
+  IF g7_id IS NULL OR g8_id IS NULL OR g9_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G7、G8或G9年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_789_6m_test', 'vip', ARRAY[g7_id, g8_id, g9_id], 0.01, 6, '初中三年组合VIP（6个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 
--- 中考VIP和高考VIP（测试环境，grade_id=13和14）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
-('vip_grade_13_6m_test', 'vip', 13, 0.01, 6, '中考VIP（6个月套餐，测试）', TRUE),
-('vip_grade_14_6m_test', 'vip', 14, 0.01, 6, '高考VIP（6个月套餐，测试）', TRUE);
+-- 高中三年组合（测试环境，6个月套餐，使用G10、G11、G12的实际ID）
+DO $$
+DECLARE
+  g10_id INTEGER;
+  g11_id INTEGER;
+  g12_id INTEGER;
+BEGIN
+  SELECT id INTO g10_id FROM grades WHERE code = 'G10';
+  SELECT id INTO g11_id FROM grades WHERE code = 'G11';
+  SELECT id INTO g12_id FROM grades WHERE code = 'G12';
+  IF g10_id IS NULL OR g11_id IS NULL OR g12_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G10、G11或G12年级，请先确保这些年级存在';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_ids, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_combo_101112_6m_test', 'vip', ARRAY[g10_id, g11_id, g12_id], 0.01, 6, '高中三年组合VIP（6个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    grade_ids = EXCLUDED.grade_ids,
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
+
+-- 中考VIP和高考VIP（测试环境，使用G13和G14的实际ID）
+DO $$
+DECLARE
+  g13_id INTEGER;
+  g14_id INTEGER;
+BEGIN
+  SELECT id INTO g13_id FROM grades WHERE code = 'G13';
+  SELECT id INTO g14_id FROM grades WHERE code = 'G14';
+  IF g13_id IS NULL OR g14_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法找到G13或G14年级，请先执行添加年级的SQL';
+  END IF;
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES
+  ('vip_grade_13_6m_test', 'vip', g13_id, 0.01, 6, '中考VIP（6个月套餐，测试）', TRUE),
+  ('vip_grade_14_6m_test', 'vip', g14_id, 0.01, 6, '高考VIP（6个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
+END $$;
 

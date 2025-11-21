@@ -382,7 +382,7 @@ const handlePurchase = async () => {
         }
       }
     }
-    // 如果选择的是中考（G13）或高考（G14），gradeIds就是[13]或[14]，无需特殊处理
+    // 注意：gradeIds使用的是实际的grade id，而不是code对应的数字
     
     const res = await vipApi.createVipOrder({
       grade_ids: gradeIds,

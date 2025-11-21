@@ -36,103 +36,134 @@ BEGIN
 END $$;
 
 -- ============================================
--- 第二步：验证G13和G14是否已添加
+-- 第二步：验证G13和G14是否已添加，并获取实际ID
 -- ============================================
 DO $$
 DECLARE
-  g13_exists BOOLEAN;
-  g14_exists BOOLEAN;
+  g13_id INTEGER;
+  g14_id INTEGER;
 BEGIN
-  SELECT EXISTS(SELECT 1 FROM grades WHERE code = 'G13') INTO g13_exists;
-  SELECT EXISTS(SELECT 1 FROM grades WHERE code = 'G14') INTO g14_exists;
-  
-  IF NOT g13_exists THEN
+  -- 获取G13的实际ID
+  SELECT id INTO g13_id FROM grades WHERE code = 'G13';
+  IF g13_id IS NULL THEN
     RAISE EXCEPTION '错误：G13（中考）年级未成功添加，请检查grades表结构';
   END IF;
   
-  IF NOT g14_exists THEN
+  -- 获取G14的实际ID
+  SELECT id INTO g14_id FROM grades WHERE code = 'G14';
+  IF g14_id IS NULL THEN
     RAISE EXCEPTION '错误：G14（高考）年级未成功添加，请检查grades表结构';
   END IF;
   
-  RAISE NOTICE '验证成功：G13和G14年级已存在';
+  RAISE NOTICE '验证成功：G13年级ID=%, G14年级ID=%', g13_id, g14_id;
+  
+  -- 将ID存储到临时表中，供后续使用
+  CREATE TEMP TABLE IF NOT EXISTS temp_grade_ids (code VARCHAR(10), id INTEGER);
+  DELETE FROM temp_grade_ids WHERE code IN ('G13', 'G14');
+  INSERT INTO temp_grade_ids VALUES ('G13', g13_id), ('G14', g14_id);
 END $$;
 
 -- ============================================
--- 第三步：插入G13和G14的价格配置
+-- 第三步：插入G13和G14的价格配置（使用实际ID）
 -- ============================================
 
--- 中考VIP：3个月套餐（grade_id=13）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_13_3m', 'vip', 13, 30.00, 3, '中考VIP（3个月套餐）', FALSE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+DO $$
+DECLARE
+  g13_id INTEGER;
+  g14_id INTEGER;
+BEGIN
+  -- 从临时表获取实际ID
+  SELECT id INTO g13_id FROM temp_grade_ids WHERE code = 'G13';
+  SELECT id INTO g14_id FROM temp_grade_ids WHERE code = 'G14';
+  
+  IF g13_id IS NULL OR g14_id IS NULL THEN
+    -- 如果临时表没有数据，直接从grades表查询
+    SELECT id INTO g13_id FROM grades WHERE code = 'G13';
+    SELECT id INTO g14_id FROM grades WHERE code = 'G14';
+  END IF;
+  
+  IF g13_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法获取G13（中考）年级ID';
+  END IF;
+  
+  IF g14_id IS NULL THEN
+    RAISE EXCEPTION '错误：无法获取G14（高考）年级ID';
+  END IF;
+  
+  RAISE NOTICE '使用年级ID：G13=%, G14=%', g13_id, g14_id;
+  
+  -- 中考VIP：3个月套餐（正式环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_13_3m', 'vip', g13_id, 30.00, 3, '中考VIP（3个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
--- 高考VIP：3个月套餐（grade_id=14）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_14_3m', 'vip', 14, 60.00, 3, '高考VIP（3个月套餐）', FALSE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+  -- 高考VIP：3个月套餐（正式环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_14_3m', 'vip', g14_id, 60.00, 3, '高考VIP（3个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
--- 中考VIP：6个月套餐（grade_id=13）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_13_6m', 'vip', 13, 55.00, 6, '中考VIP（6个月套餐）', FALSE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+  -- 中考VIP：6个月套餐（正式环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_13_6m', 'vip', g13_id, 55.00, 6, '中考VIP（6个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
--- 高考VIP：6个月套餐（grade_id=14）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_14_6m', 'vip', 14, 99.00, 6, '高考VIP（6个月套餐）', FALSE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+  -- 高考VIP：6个月套餐（正式环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_14_6m', 'vip', g14_id, 99.00, 6, '高考VIP（6个月套餐）', FALSE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
--- 测试环境价格配置
--- 中考VIP：3个月套餐（测试环境）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_13_3m_test', 'vip', 13, 0.01, 3, '中考VIP（3个月套餐，测试）', TRUE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+  -- 中考VIP：3个月套餐（测试环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_13_3m_test', 'vip', g13_id, 0.01, 3, '中考VIP（3个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
--- 高考VIP：3个月套餐（测试环境）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_14_3m_test', 'vip', 14, 0.01, 3, '高考VIP（3个月套餐，测试）', TRUE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+  -- 高考VIP：3个月套餐（测试环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_14_3m_test', 'vip', g14_id, 0.01, 3, '高考VIP（3个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
--- 中考VIP：6个月套餐（测试环境）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_13_6m_test', 'vip', 13, 0.01, 6, '中考VIP（6个月套餐，测试）', TRUE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+  -- 中考VIP：6个月套餐（测试环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_13_6m_test', 'vip', g13_id, 0.01, 6, '中考VIP（6个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
--- 高考VIP：6个月套餐（测试环境）
-INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
-VALUES ('vip_grade_14_6m_test', 'vip', 14, 0.01, 6, '高考VIP（6个月套餐，测试）', TRUE)
-ON CONFLICT (config_key) DO UPDATE SET 
-  amount = EXCLUDED.amount,
-  duration_months = EXCLUDED.duration_months,
-  description = EXCLUDED.description,
-  is_active = TRUE;
+  -- 高考VIP：6个月套餐（测试环境）
+  INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) 
+  VALUES ('vip_grade_14_6m_test', 'vip', g14_id, 0.01, 6, '高考VIP（6个月套餐，测试）', TRUE)
+  ON CONFLICT (config_key) DO UPDATE SET 
+    amount = EXCLUDED.amount,
+    duration_months = EXCLUDED.duration_months,
+    description = EXCLUDED.description,
+    is_active = TRUE;
 
-RAISE NOTICE 'G13和G14的价格配置已成功插入';
+  RAISE NOTICE 'G13和G14的价格配置已成功插入';
+END $$;
 
