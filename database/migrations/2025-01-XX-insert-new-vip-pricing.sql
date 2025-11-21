@@ -1,6 +1,18 @@
 -- 插入新的VIP价格配置（3个月和6个月套餐）
 -- 创建时间: 2025-01-XX
 
+-- 注意：执行此文件前，请先执行 database/migrations/2025-01-XX-add-zhongkao-gaokao-grades.sql
+-- 或者确保grades表中已存在G13（中考）和G14（高考）年级
+
+-- 如果grades表中还没有G13和G14，先添加它们
+INSERT INTO grades (name, code, sort_order)
+SELECT '中考', 'G13', 13
+WHERE NOT EXISTS (SELECT 1 FROM grades WHERE code = 'G13');
+
+INSERT INTO grades (name, code, sort_order)
+SELECT '高考', 'G14', 14
+WHERE NOT EXISTS (SELECT 1 FROM grades WHERE code = 'G14');
+
 -- 3个月套餐价格（正式环境）
 -- 小学1-3年级：每个年级15元
 INSERT INTO pricing_config (config_key, config_type, grade_id, amount, duration_months, description, is_test_mode) VALUES

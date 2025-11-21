@@ -37,6 +37,7 @@
             <!-- 组合套餐选项（仅初中和高中，且不是中考或高考） -->
             <div v-if="showComboOption" class="combo-option">
               <el-checkbox v-model="useCombo" @change="handleComboChange">购买组合套餐</el-checkbox>
+              <p class="combo-desc">{{ comboDesc }}</p>
             </div>
           </div>
           
@@ -216,6 +217,32 @@ const showComboOption = computed(() => {
   }
   return code === 'G7' || code === 'G8' || code === 'G9' || 
          code === 'G10' || code === 'G11' || code === 'G12'
+})
+
+// 组合套餐描述
+const comboDesc = computed(() => {
+  if (!selectedGrade.value) return ''
+  const grade = grades.value.find(g => g.id === selectedGrade.value)
+  if (!grade) return ''
+  const code = grade.code
+  const pricing3m = priceMap.value['3m'] || {}
+  const pricing6m = priceMap.value['6m'] || {}
+  
+  if (code === 'G7' || code === 'G8' || code === 'G9') {
+    const price3m = pricing3m.combo_7_8_9 || 0
+    const price6m = pricing6m.combo_7_8_9 || 0
+    const monthly3m = price3m > 0 ? (price3m / 3).toFixed(2) : '0.00'
+    const monthly6m = price6m > 0 ? (price6m / 6).toFixed(2) : '0.00'
+    return `超值套餐，同时拥有初一、初二、初三三个年级VIP权限，3个月套餐¥${price3m}（平均每月¥${monthly3m}），6个月套餐¥${price6m}（平均每月¥${monthly6m}）`
+  }
+  if (code === 'G10' || code === 'G11' || code === 'G12') {
+    const price3m = pricing3m.combo_10_11_12 || 0
+    const price6m = pricing6m.combo_10_11_12 || 0
+    const monthly3m = price3m > 0 ? (price3m / 3).toFixed(2) : '0.00'
+    const monthly6m = price6m > 0 ? (price6m / 6).toFixed(2) : '0.00'
+    return `超值套餐，同时拥有高一、高二、高三三个年级VIP权限，3个月套餐¥${price3m}（平均每月¥${monthly3m}），6个月套餐¥${price6m}（平均每月¥${monthly6m}）`
+  }
+  return ''
 })
 
 // 获取当前选择的价格（3个月）
