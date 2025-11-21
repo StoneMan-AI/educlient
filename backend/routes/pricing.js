@@ -13,31 +13,10 @@ router.get('/all', async (req, res, next) => {
   try {
     const pricing = await getAllPricing()
     
-    // 转换为前端需要的格式
-    const frontendPricing = {
-      vip: {
-        combo78: pricing.vip.combo_7_8_9 || 0,
-        combo1012: pricing.vip.combo_10_11_12 || 0,
-        g1: pricing.vip.grade_1 || 0,
-        g2: pricing.vip.grade_2 || 0,
-        g3: pricing.vip.grade_3 || 0,
-        g4: pricing.vip.grade_4 || 0,
-        g5: pricing.vip.grade_5 || 0,
-        g6: pricing.vip.grade_6 || 0,
-        g7: pricing.vip.grade_7 || 0,
-        g8: pricing.vip.grade_8 || 0,
-        g9: pricing.vip.grade_9 || 0,
-        g10: pricing.vip.grade_10 || 0,
-        g11: pricing.vip.grade_11 || 0,
-        g12: pricing.vip.grade_12 || 0
-      },
-      answer: pricing.answer,
-      download: pricing.download
-    }
-    
+    // 直接返回新的价格格式（包含3m和6m）
     res.json({
       success: true,
-      pricing: frontendPricing
+      pricing: pricing
     })
   } catch (error) {
     next(error)

@@ -44,10 +44,47 @@ async function completeOrderPayment(order, { transactionId = null, isMock = fals
       }
     }
 
+    // 根据订单价格和年级，从pricing_config表中查询duration_months
+    // 通过价格和年级ID匹配来确定套餐时长
+    const testMode = process.env.PAYMENT_MODE === 'test' || process.env.NODE_ENV === 'development'
+    let durationMonths = 3 // 默认3个月
+    
+    if (orderGradeIds.length > 1) {
+      // 组合套餐
+      const durationResult = await pool.query(
+        `SELECT duration_months FROM pricing_config 
+         WHERE config_type = 'vip' 
+           AND grade_ids = $1::int[]
+           AND amount = $2
+           AND is_test_mode = $3
+           AND is_active = TRUE
+         ORDER BY created_at DESC LIMIT 1`,
+        [orderGradeIds, order.amount, testMode]
+      )
+      if (durationResult.rows.length > 0) {
+        durationMonths = durationResult.rows[0].duration_months || 3
+      }
+    } else {
+      // 单年级
+      const durationResult = await pool.query(
+        `SELECT duration_months FROM pricing_config 
+         WHERE config_type = 'vip' 
+           AND grade_id = $1
+           AND amount = $2
+           AND is_test_mode = $3
+           AND is_active = TRUE
+         ORDER BY created_at DESC LIMIT 1`,
+        [orderGradeIds[0], order.amount, testMode]
+      )
+      if (durationResult.rows.length > 0) {
+        durationMonths = durationResult.rows[0].duration_months || 3
+      }
+    }
+
     if (matchedVip) {
       // 情况1：完全匹配，延长该VIP记录的时间
       const newEndDate = new Date(matchedVip.end_date)
-      newEndDate.setMonth(newEndDate.getMonth() + 1)
+      newEndDate.setMonth(newEndDate.getMonth() + durationMonths)
 
       await pool.query(
         `UPDATE vip_memberships 
@@ -62,14 +99,14 @@ async function completeOrderPayment(order, { transactionId = null, isMock = fals
         [matchedVip.id, order.order_no]
       )
 
-      console.log(`[VIP] 延长VIP时间: 用户${userId}, VIP记录${matchedVip.id}, 年级${orderGradeIds.join(',')}`)
+      console.log(`[VIP] 延长VIP时间: 用户${userId}, VIP记录${matchedVip.id}, 年级${orderGradeIds.join(',')}, 时长${durationMonths}个月`)
     } else {
       // 情况2：没有完全匹配，创建新的VIP记录
       // 注意：即使购买的年级是已有VIP的子集，也创建新的VIP记录
       // 这样用户可以同时拥有多个VIP记录，每个记录对应不同的年级组合
       const startDate = new Date()
       const endDate = new Date()
-      endDate.setMonth(endDate.getMonth() + 1)
+      endDate.setMonth(endDate.getMonth() + durationMonths)
 
       const insertResult = await pool.query(
         `INSERT INTO vip_memberships (user_id, grade_ids, start_date, end_date, status)
@@ -86,7 +123,7 @@ async function completeOrderPayment(order, { transactionId = null, isMock = fals
         [newVipId, order.order_no]
       )
 
-      console.log(`[VIP] 创建新VIP记录: 用户${userId}, VIP记录${newVipId}, 年级${orderGradeIds.join(',')}`)
+      console.log(`[VIP] 创建新VIP记录: 用户${userId}, VIP记录${newVipId}, 年级${orderGradeIds.join(',')}, 时长${durationMonths}个月`)
     }
   }
 
@@ -302,7 +339,7 @@ router.get('/info', authenticate, async (req, res, next) => {
 // 创建VIP订单
 router.post('/order', authenticate, async (req, res, next) => {
   try {
-    const { grade_ids, amount } = req.body
+    const { grade_ids, amount, duration_months, special_type } = req.body
     const userId = req.user.id
     
     if (!grade_ids || !Array.isArray(grade_ids) || grade_ids.length === 0) {
@@ -319,12 +356,25 @@ router.post('/order', authenticate, async (req, res, next) => {
       })
     }
     
+    // 验证套餐时长（必须是3或6个月）
+    const durationMonths = duration_months || 3
+    if (durationMonths !== 3 && durationMonths !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: '套餐时长必须是3个月或6个月'
+      })
+    }
+    
     // 验证价格（从数据库获取正确价格）
     const { getVipPrice, validatePrice } = await import('../utils/pricing.js')
-    const correctPrice = await getVipPrice(grade_ids)
+    const correctPrice = await getVipPrice(grade_ids, durationMonths, special_type || null)
     
     // 验证前端传来的价格是否正确（防止篡改）
-    if (!await validatePrice('vip', amount, { gradeIds: grade_ids })) {
+    if (!await validatePrice('vip', amount, { 
+      gradeIds: grade_ids, 
+      durationMonths: durationMonths,
+      specialType: special_type || null
+    })) {
       return res.status(400).json({
         success: false,
         message: `价格不正确，正确价格为 ¥${correctPrice}`
@@ -334,6 +384,8 @@ router.post('/order', authenticate, async (req, res, next) => {
     const orderNo = `VIP_${Date.now()}_${userId}`
     
     // 创建订单（使用数据库中的正确价格，而不是前端传来的价格）
+    // 注意：这里暂时不存储duration_months和special_type，因为orders表没有这些字段
+    // 可以通过end_date - start_date来计算duration_months
     await pool.query(
       `INSERT INTO orders (user_id, order_no, type, amount, grade_ids, status)
        VALUES ($1, $2, 'vip', $3, $4, 'pending')`,
@@ -343,7 +395,8 @@ router.post('/order', authenticate, async (req, res, next) => {
     res.json({
       success: true,
       order_no: orderNo,
-      amount: correctPrice
+      amount: correctPrice,
+      duration_months: durationMonths
     })
   } catch (error) {
     next(error)

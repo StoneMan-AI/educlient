@@ -34,21 +34,66 @@
               </el-radio>
             </el-radio-group>
             
-            <div v-if="showComboOption" class="combo-option">
-              <el-checkbox v-model="useCombo">购买组合套餐</el-checkbox>
-              <p class="combo-desc">{{ comboDesc }}</p>
+            <!-- 中考VIP和高考VIP选项 -->
+            <div v-if="showSpecialOption" class="special-option">
+              <el-checkbox v-model="useSpecial" @change="handleSpecialChange">
+                {{ specialOptionLabel }}
+              </el-checkbox>
+            </div>
+            
+            <!-- 组合套餐选项（仅初中和高中） -->
+            <div v-if="showComboOption && !useSpecial" class="combo-option">
+              <el-checkbox v-model="useCombo" @change="handleComboChange">购买组合套餐</el-checkbox>
             </div>
           </div>
           
           <el-divider />
           
-          <div class="pricing">
-            <h3>价格</h3>
-            <div class="price-info">
-              <span class="price-label">月费：</span>
-              <span class="price-value">¥{{ currentPrice }}</span>
+          <!-- 套餐选择（3个月和6个月） -->
+          <div v-if="selectedGrade" class="package-selection">
+            <h3>选择套餐</h3>
+            <div class="package-cards">
+              <!-- 3个月套餐 -->
+              <div 
+                class="package-card" 
+                :class="{ 'selected': selectedDuration === 3 }"
+                @click="selectedDuration = 3"
+              >
+                <div class="package-header">
+                  <h4>3个月套餐</h4>
+                  <el-tag type="success" size="small">推荐</el-tag>
+                </div>
+                <div class="package-price">
+                  <span class="price-value">¥{{ price3m }}</span>
+                  <span class="price-unit">/3个月</span>
+                </div>
+                <div class="package-monthly">
+                  <span class="monthly-label">平均每月：</span>
+                  <span class="monthly-value">¥{{ monthlyPrice3m }}</span>
+                </div>
+              </div>
+              
+              <!-- 6个月套餐 -->
+              <div 
+                class="package-card" 
+                :class="{ 'selected': selectedDuration === 6 }"
+                @click="selectedDuration = 6"
+              >
+                <div class="package-header">
+                  <h4>6个月套餐</h4>
+                  <el-tag type="warning" size="small">更优惠</el-tag>
+                </div>
+                <div class="package-price">
+                  <span class="price-value">¥{{ price6m }}</span>
+                  <span class="price-unit">/6个月</span>
+                </div>
+                <div class="package-monthly">
+                  <span class="monthly-label">平均每月：</span>
+                  <span class="monthly-value">¥{{ monthlyPrice6m }}</span>
+                </div>
+              </div>
             </div>
-            <p class="price-desc">购买后立即生效，到期后不会自动扣费</p>
+            <p class="package-desc">购买后立即生效，到期后不会自动扣费</p>
           </div>
           
           <el-divider />
@@ -139,40 +184,26 @@ const userStore = useUserStore()
 
 const grades = ref([])
 const selectedGrade = ref(null)
+const selectedDuration = ref(3) // 默认选择3个月套餐
 const useCombo = ref(false)
+const useSpecial = ref(false) // 中考VIP或高考VIP
 const loading = ref(false)
 const paymentDialogVisible = ref(false)
 const orderNo = ref('')
 const vipRecords = ref([])
 
 const priceMap = ref({
-  combo78: 0,
-  combo1012: 0,
-  g1: 0, g2: 0, g3: 0, g4: 0,
-  g5: 0, g6: 0,
-  g7: 0, g8: 0, g9: 0,
-  g10: 0, g11: 0, g12: 0
+  '3m': {}, // 3个月套餐价格
+  '6m': {}  // 6个月套餐价格
 })
 
 const loadPricing = async () => {
   try {
     const res = await pricingApi.getAllPricing()
-    if (res.success && res.pricing) {
+    if (res.success && res.pricing && res.pricing.vip) {
       priceMap.value = {
-        combo78: res.pricing.vip.combo78 || 0,
-        combo1012: res.pricing.vip.combo1012 || 0,
-        g1: res.pricing.vip.g1 || 0,
-        g2: res.pricing.vip.g2 || 0,
-        g3: res.pricing.vip.g3 || 0,
-        g4: res.pricing.vip.g4 || 0,
-        g5: res.pricing.vip.g5 || 0,
-        g6: res.pricing.vip.g6 || 0,
-        g7: res.pricing.vip.g7 || 0,
-        g8: res.pricing.vip.g8 || 0,
-        g9: res.pricing.vip.g9 || 0,
-        g10: res.pricing.vip.g10 || 0,
-        g11: res.pricing.vip.g11 || 0,
-        g12: res.pricing.vip.g12 || 0
+        '3m': res.pricing.vip['3m'] || {},
+        '6m': res.pricing.vip['6m'] || {}
       }
     }
   } catch (error) {
@@ -181,8 +212,40 @@ const loadPricing = async () => {
   }
 }
 
-const showComboOption = computed(() => {
+// 显示特殊选项（中考VIP或高考VIP）
+const showSpecialOption = computed(() => {
   if (!selectedGrade.value) return false
+  const grade = grades.value.find(g => g.id === selectedGrade.value)
+  if (!grade) return false
+  const code = grade.code
+  // 初中年级显示中考VIP选项
+  if (code === 'G7' || code === 'G8' || code === 'G9') {
+    return true
+  }
+  // 高中年级显示高考VIP选项
+  if (code === 'G10' || code === 'G11' || code === 'G12') {
+    return true
+  }
+  return false
+})
+
+const specialOptionLabel = computed(() => {
+  if (!selectedGrade.value) return ''
+  const grade = grades.value.find(g => g.id === selectedGrade.value)
+  if (!grade) return ''
+  const code = grade.code
+  if (code === 'G7' || code === 'G8' || code === 'G9') {
+    return '购买中考VIP'
+  }
+  if (code === 'G10' || code === 'G11' || code === 'G12') {
+    return '购买高考VIP'
+  }
+  return ''
+})
+
+// 显示组合套餐选项（仅初中和高中，且不是特殊选项）
+const showComboOption = computed(() => {
+  if (!selectedGrade.value || useSpecial.value) return false
   const grade = grades.value.find(g => g.id === selectedGrade.value)
   if (!grade) return false
   const code = grade.code
@@ -190,39 +253,87 @@ const showComboOption = computed(() => {
          code === 'G10' || code === 'G11' || code === 'G12'
 })
 
-const comboDesc = computed(() => {
-  if (!selectedGrade.value) return ''
-  const grade = grades.value.find(g => g.id === selectedGrade.value)
-  if (!grade) return ''
-  const code = grade.code
-  const pricing = priceMap.value
-  if (code === 'G7' || code === 'G8' || code === 'G9') {
-    return `同时购买7、8、9年级，每月${pricing.combo78}元`
-  }
-  if (code === 'G10' || code === 'G11' || code === 'G12') {
-    return `同时购买10、11、12年级，每月${pricing.combo1012}元`
-  }
-  return ''
-})
-
-const currentPrice = computed(() => {
+// 获取当前选择的价格（3个月）
+const price3m = computed(() => {
   if (!selectedGrade.value) return 0
-  const pricing = priceMap.value
+  const pricing = priceMap.value['3m'] || {}
+  
+  if (useSpecial.value) {
+    const grade = grades.value.find(g => g.id === selectedGrade.value)
+    if (!grade) return 0
+    const code = grade.code
+    if (code === 'G7' || code === 'G8' || code === 'G9') {
+      return pricing.zhongkao || 0
+    }
+    if (code === 'G10' || code === 'G11' || code === 'G12') {
+      return pricing.gaokao || 0
+    }
+  }
+  
   if (useCombo.value) {
     const grade = grades.value.find(g => g.id === selectedGrade.value)
     if (!grade) return 0
     const code = grade.code
     if (code === 'G7' || code === 'G8' || code === 'G9') {
-      return pricing.combo78
+      return pricing.combo_7_8_9 || 0
     }
     if (code === 'G10' || code === 'G11' || code === 'G12') {
-      return pricing.combo1012
+      return pricing.combo_10_11_12 || 0
     }
   }
+  
   const grade = grades.value.find(g => g.id === selectedGrade.value)
   if (!grade) return 0
-  const code = grade.code.toLowerCase()
-  return pricing[code] || 0
+  return pricing[`grade_${grade.id}`] || 0
+})
+
+// 获取当前选择的价格（6个月）
+const price6m = computed(() => {
+  if (!selectedGrade.value) return 0
+  const pricing = priceMap.value['6m'] || {}
+  
+  if (useSpecial.value) {
+    const grade = grades.value.find(g => g.id === selectedGrade.value)
+    if (!grade) return 0
+    const code = grade.code
+    if (code === 'G7' || code === 'G8' || code === 'G9') {
+      return pricing.zhongkao || 0
+    }
+    if (code === 'G10' || code === 'G11' || code === 'G12') {
+      return pricing.gaokao || 0
+    }
+  }
+  
+  if (useCombo.value) {
+    const grade = grades.value.find(g => g.id === selectedGrade.value)
+    if (!grade) return 0
+    const code = grade.code
+    if (code === 'G7' || code === 'G8' || code === 'G9') {
+      return pricing.combo_7_8_9 || 0
+    }
+    if (code === 'G10' || code === 'G11' || code === 'G12') {
+      return pricing.combo_10_11_12 || 0
+    }
+  }
+  
+  const grade = grades.value.find(g => g.id === selectedGrade.value)
+  if (!grade) return 0
+  return pricing[`grade_${grade.id}`] || 0
+})
+
+// 每月价格（3个月套餐）
+const monthlyPrice3m = computed(() => {
+  return (price3m.value / 3).toFixed(2)
+})
+
+// 每月价格（6个月套餐）
+const monthlyPrice6m = computed(() => {
+  return (price6m.value / 6).toFixed(2)
+})
+
+// 当前选择的价格
+const currentPrice = computed(() => {
+  return selectedDuration.value === 6 ? price6m.value : price3m.value
 })
 
 const getGradeName = (gradeId) => {
@@ -265,6 +376,20 @@ const loadVipRecords = async () => {
 
 const handleGradeChange = () => {
   useCombo.value = false
+  useSpecial.value = false
+  selectedDuration.value = 3 // 重置为3个月
+}
+
+const handleComboChange = () => {
+  if (useCombo.value) {
+    useSpecial.value = false
+  }
+}
+
+const handleSpecialChange = () => {
+  if (useSpecial.value) {
+    useCombo.value = false
+  }
 }
 
 const handlePurchase = async () => {
@@ -277,10 +402,31 @@ const handlePurchase = async () => {
     router.push('/login')
     return
   }
+  if (currentPrice.value === 0) {
+    ElMessage.warning('价格配置错误，请刷新页面重试')
+    return
+  }
+  
   loading.value = true
   try {
     let gradeIds = [selectedGrade.value]
-    if (useCombo.value) {
+    let specialType = null
+    
+    if (useSpecial.value) {
+      // 中考VIP或高考VIP
+      const grade = grades.value.find(g => g.id === selectedGrade.value)
+      if (grade) {
+        const code = grade.code
+        if (code === 'G7' || code === 'G8' || code === 'G9') {
+          gradeIds = [7, 8, 9].map(id => grades.value.find(g => g.code === `G${id}`)?.id).filter(Boolean)
+          specialType = 'zhongkao'
+        } else if (code === 'G10' || code === 'G11' || code === 'G12') {
+          gradeIds = [10, 11, 12].map(id => grades.value.find(g => g.code === `G${id}`)?.id).filter(Boolean)
+          specialType = 'gaokao'
+        }
+      }
+    } else if (useCombo.value) {
+      // 组合套餐
       const grade = grades.value.find(g => g.id === selectedGrade.value)
       if (grade) {
         const code = grade.code
@@ -291,9 +437,12 @@ const handlePurchase = async () => {
         }
       }
     }
+    
     const res = await vipApi.createVipOrder({
       grade_ids: gradeIds,
-      amount: currentPrice.value
+      amount: currentPrice.value,
+      duration_months: selectedDuration.value,
+      special_type: specialType
     })
     orderNo.value = res.order_no
     paymentDialogVisible.value = true
@@ -376,8 +525,99 @@ onMounted(async () => {
   margin-bottom: 15px;
 }
 
+.package-selection {
+  margin: 20px 0;
+}
+
+.package-selection h3 {
+  margin-bottom: 20px;
+}
+
+.package-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 15px;
+}
+
+.package-card {
+  border: 2px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: #fff;
+}
+
+.package-card:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.2);
+}
+
+.package-card.selected {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.package-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.package-header h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.package-price {
+  margin-bottom: 10px;
+}
+
+.package-price .price-value {
+  font-size: 32px;
+  font-weight: bold;
+  color: #f56c6c;
+}
+
+.package-price .price-unit {
+  font-size: 16px;
+  color: #666;
+  margin-left: 5px;
+}
+
+.package-monthly {
+  font-size: 14px;
+  color: #666;
+}
+
+.package-monthly .monthly-label {
+  margin-right: 5px;
+}
+
+.package-monthly .monthly-value {
+  color: #409eff;
+  font-weight: bold;
+}
+
+.package-desc {
+  margin-top: 15px;
+  color: #999;
+  font-size: 14px;
+  text-align: center;
+}
+
+.special-option {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
 .combo-option {
-  margin-top: 20px;
+  margin-top: 15px;
   padding: 15px;
   background: #f5f7fa;
   border-radius: 4px;
