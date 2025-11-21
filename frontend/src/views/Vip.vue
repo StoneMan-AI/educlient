@@ -233,14 +233,14 @@ const comboDesc = computed(() => {
     const price6m = pricing6m.combo_7_8_9 || 0
     const monthly3m = price3m > 0 ? (price3m / 3).toFixed(2) : '0.00'
     const monthly6m = price6m > 0 ? (price6m / 6).toFixed(2) : '0.00'
-    return `超值套餐，同时拥有初一、初二、初三三个年级VIP权限，3个月套餐¥${price3m}（平均每月¥${monthly3m}），6个月套餐¥${price6m}（平均每月¥${monthly6m}）`
+    return `超值套餐，同时拥有初一、初二、初三三个年级VIP权限，3个月套餐仅¥${price3m}（平均每月不到¥${monthly3m}），6个月套餐仅¥${price6m}（平均每月不到¥${monthly6m}）`
   }
   if (code === 'G10' || code === 'G11' || code === 'G12') {
     const price3m = pricing3m.combo_10_11_12 || 0
     const price6m = pricing6m.combo_10_11_12 || 0
     const monthly3m = price3m > 0 ? (price3m / 3).toFixed(2) : '0.00'
     const monthly6m = price6m > 0 ? (price6m / 6).toFixed(2) : '0.00'
-    return `超值套餐，同时拥有高一、高二、高三三个年级VIP权限，3个月套餐¥${price3m}（平均每月¥${monthly3m}），6个月套餐¥${price6m}（平均每月¥${monthly6m}）`
+    return `超值套餐，同时拥有高一、高二、高三三个年级VIP权限，3个月套餐仅¥${price3m}（平均每月不到¥${monthly3m}），6个月套餐仅¥${price6m}（平均每月不到¥${monthly6m}）`
   }
   return ''
 })
