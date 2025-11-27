@@ -1,8 +1,9 @@
 <template>
-  <el-dialog
+  <el-drawer
     v-model="dialogVisible"
     title="查看答案"
-    width="80%"
+    :size="'50%'"
+    direction="rtl"
     @close="handleClose"
   >
     <div class="answer-content">
@@ -17,7 +18,7 @@
     <template #footer>
       <el-button @click="dialogVisible = false">关闭</el-button>
     </template>
-  </el-dialog>
+  </el-drawer>
 </template>
 
 <script setup>
@@ -51,14 +52,16 @@ const handleClose = () => {
   min-height: 400px;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  padding: 20px 0;
 }
 
 .answer-image {
   max-width: 100%;
-  max-height: 600px;
+  max-height: calc(100vh - 200px);
   border: 1px solid #ddd;
   border-radius: 4px;
+  object-fit: contain;
 }
 
 .no-answer {
