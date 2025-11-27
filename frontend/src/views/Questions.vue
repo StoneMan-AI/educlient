@@ -31,30 +31,6 @@
       </el-header>
       <el-main>
         <div class="question-layout">
-          <el-card class="selected-sidebar">
-            <div class="sidebar-header">
-              <span>已选试题</span>
-              <span class="sidebar-count">{{ questionStore.selectedCount }}/15</span>
-            </div>
-            <el-empty
-              v-if="selectedQuestionsDetails.length === 0"
-              description="暂未选择试题"
-            />
-            <el-scrollbar v-else class="selected-scroll">
-              <div
-                v-for="item in selectedQuestionsDetails"
-                :key="item.id"
-                class="selected-item"
-              >
-                <div class="selected-info">
-                  <el-tag type="success" size="small">{{ item.difficulty_name || '未知难度' }}</el-tag>
-                  <el-tag type="info" size="small">{{ item.question_type_name || '题型未设置' }}</el-tag>
-                </div>
-                <el-button type="text" size="small" @click="handleRemoveSelected(item.id)">取消</el-button>
-              </div>
-            </el-scrollbar>
-          </el-card>
-          
           <div class="question-main">
             <el-card v-if="currentQuestion" class="question-card">
               <div class="question-header">
@@ -98,6 +74,30 @@
             
             <el-empty v-else description="暂无试题数据" />
           </div>
+          
+          <el-card class="selected-sidebar">
+            <div class="sidebar-header">
+              <span>已选试题</span>
+              <span class="sidebar-count">{{ questionStore.selectedCount }}/15</span>
+            </div>
+            <el-empty
+              v-if="selectedQuestionsDetails.length === 0"
+              description="暂未选择试题"
+            />
+            <el-scrollbar v-else class="selected-scroll">
+              <div
+                v-for="item in selectedQuestionsDetails"
+                :key="item.id"
+                class="selected-item"
+              >
+                <div class="selected-info">
+                  <el-tag type="success" size="small">{{ item.difficulty_name || '未知难度' }}</el-tag>
+                  <el-tag type="info" size="small">{{ item.question_type_name || '题型未设置' }}</el-tag>
+                </div>
+                <el-button type="text" size="small" @click="handleRemoveSelected(item.id)">取消</el-button>
+              </div>
+            </el-scrollbar>
+          </el-card>
         </div>
       </el-main>
     </el-container>
