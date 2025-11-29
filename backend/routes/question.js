@@ -202,7 +202,8 @@ router.get('/search', optionalAuth, async (req, res, next) => {
           AND q.knowledge_point_id = $3
         LIMIT 5
       `
-      const debugResult = await pool.query(debugQuery, params)
+      // 调试查询只使用基础参数（3个），不使用params（可能包含分页参数）
+      const debugResult = await pool.query(debugQuery, baseParams)
       if (debugResult.rows.length > 0) {
         console.log('找到题目但状态不是"已发布":', debugResult.rows.map(r => ({
           id: r.id,
@@ -221,7 +222,8 @@ router.get('/search', optionalAuth, async (req, res, next) => {
           WHERE grade_id = $1 AND subject_id = $2 AND knowledge_point_id = $3
           GROUP BY status
         `
-        const statusResult = await pool.query(statusQuery, params)
+        // 状态查询也只使用基础参数（3个）
+        const statusResult = await pool.query(statusQuery, baseParams)
         if (statusResult.rows.length > 0) {
           console.log('各状态题目数量:', statusResult.rows)
         } else {
