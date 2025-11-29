@@ -85,12 +85,15 @@ router.get('/search', optionalAuth, async (req, res, next) => {
     
     // VIP用户：排除已下载的题目（如果是一键生成）
     let excludeCondition = ''
+    let countParams = [...baseParams] // 用于countQuery的参数数组
     if (req.user && req.query.exclude_downloaded === 'true') {
+      const paramIndex1 = countParams.length + 1
+      const paramIndex2 = countParams.length + 2
       excludeCondition = ` AND q.id NOT IN (
         SELECT question_id FROM user_downloaded_questions 
-        WHERE user_id = $${baseParams.length + 1} AND knowledge_point_id = $${baseParams.length + 2}
+        WHERE user_id = $${paramIndex1} AND knowledge_point_id = $${paramIndex2}
       )`
-      baseParams.push(req.user.id, knowledgePointId)
+      countParams.push(req.user.id, knowledgePointId)
     }
     
     // 先获取总数
@@ -100,8 +103,21 @@ router.get('/search', optionalAuth, async (req, res, next) => {
       ${baseWhere}${excludeCondition}
     `
     
-    const countResult = await pool.query(countQuery, baseParams)
+    const countResult = await pool.query(countQuery, countParams)
     const total = parseInt(countResult.rows[0]?.total || '0', 10)
+    
+    // 构建主查询的参数数组（需要重新构建excludeCondition的参数索引）
+    const params = [...baseParams] // 复制基础参数数组
+    let mainExcludeCondition = ''
+    if (req.user && req.query.exclude_downloaded === 'true') {
+      const paramIndex1 = params.length + 1
+      const paramIndex2 = params.length + 2
+      mainExcludeCondition = ` AND q.id NOT IN (
+        SELECT question_id FROM user_downloaded_questions 
+        WHERE user_id = $${paramIndex1} AND knowledge_point_id = $${paramIndex2}
+      )`
+      params.push(req.user.id, knowledgePointId)
+    }
     
     // 构建主查询（获取题目详情）
     let query = `
@@ -118,10 +134,8 @@ router.get('/search', optionalAuth, async (req, res, next) => {
       LEFT JOIN knowledge_points kp ON q.knowledge_point_id = kp.id
       LEFT JOIN question_types qt ON q.question_type_id = qt.id
       LEFT JOIN difficulty_levels dl ON q.difficulty_id = dl.id
-      ${baseWhere}${excludeCondition}
+      ${baseWhere}${mainExcludeCondition}
     `
-    
-    const params = [...baseParams] // 复制参数数组
     
     // 处理排序参数
     const sortBy = req.query.sort_by || 'created_at_desc'
