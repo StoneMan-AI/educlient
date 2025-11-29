@@ -740,10 +740,19 @@ router.get('/downloaded', authenticate, async (req, res, next) => {
       })
     }
     
+    // 转换为整数，确保类型匹配
+    const knowledgePointId = parseInt(knowledge_point_id)
+    if (isNaN(knowledgePointId)) {
+      return res.status(400).json({
+        success: false,
+        message: '知识点ID格式错误'
+      })
+    }
+    
     const result = await pool.query(
       `SELECT question_id FROM user_downloaded_questions 
        WHERE user_id = $1 AND knowledge_point_id = $2`,
-      [userId, knowledge_point_id]
+      [userId, knowledgePointId]
     )
     
     res.json({
@@ -751,6 +760,7 @@ router.get('/downloaded', authenticate, async (req, res, next) => {
       question_ids: result.rows.map(r => r.question_id)
     })
   } catch (error) {
+    console.error('获取已下载题目失败:', error)
     next(error)
   }
 })
