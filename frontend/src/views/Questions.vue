@@ -3,7 +3,17 @@
     <el-container>
       <el-header>
         <div class="header-content">
-          <el-button @click="$router.push('/search')" :icon="ArrowLeft">返回查询</el-button>
+          <div class="header-left">
+            <el-button @click="$router.push('/search')" :icon="ArrowLeft">返回查询</el-button>
+            <el-checkbox 
+              v-model="filterSGrade" 
+              @change="handleFilterSGradeChange"
+              :disabled="!userStore.isVip"
+              class="s-grade-checkbox"
+            >
+              VIP用户可以直接查询S级典型题型
+            </el-checkbox>
+          </div>
           <div class="header-actions">
             <el-select v-model="sortBy" @change="handleSortChange" placeholder="排序方式" style="width: 150px; margin-right: 15px;">
               <el-option label="最新上传" value="created_at_desc" />
@@ -15,7 +25,7 @@
             <el-button 
               type="primary" 
               @click="handleOneClickGenerate"
-              :disabled="questionStore.selectedCount > 0"
+              :disabled="questionStore.selectedCount > 0 || filterSGrade"
             >
               一键生成试题组
             </el-button>
@@ -148,6 +158,7 @@ const paymentAmount = ref(0)
 const paymentType = ref('answer') // 'answer' | 'download'
 const vipTip = ref('') // VIP权限提示信息
 const sortBy = ref('created_at_desc') // 默认按最新上传时间排序
+const filterSGrade = ref(false) // 是否筛选S级典型题型
 
 const isSelected = computed(() => {
   return currentQuestion.value ? questionStore.isSelected(currentQuestion.value.id) : false
@@ -272,6 +283,11 @@ const loadQuestions = async () => {
       sort_by: sortBy.value
     }
     
+    // 如果勾选了S级典型题型筛选，添加筛选参数
+    if (filterSGrade.value && userStore.isVip) {
+      params.filter_s_grade = 'true'
+    }
+    
     const res = await questionApi.searchQuestions(params)
     questions.value = res.questions || []
     total.value = res.total || 0
@@ -305,6 +321,12 @@ const loadQuestions = async () => {
 
 const handleSortChange = () => {
   // 排序改变时，重置到第一题并重新加载
+  currentIndex.value = 0
+  loadQuestions()
+}
+
+const handleFilterSGradeChange = () => {
+  // S级典型题型筛选改变时，重置到第一题并重新加载
   currentIndex.value = 0
   loadQuestions()
 }
@@ -688,6 +710,16 @@ onUnmounted(() => {
 watch(() => userStore.isLoggedIn, (val) => {
   if (val) {
     clearGuestLimitState()
+  } else {
+    // 用户登出时，重置S级典型题型筛选
+    filterSGrade.value = false
+  }
+})
+
+watch(() => userStore.isVip, (val) => {
+  // VIP状态改变时，如果不是VIP，重置S级典型题型筛选
+  if (!val) {
+    filterSGrade.value = false
   }
 })
 </script>
@@ -703,6 +735,16 @@ watch(() => userStore.isLoggedIn, (val) => {
   justify-content: space-between;
   align-items: center;
   height: 100%;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.s-grade-checkbox {
+  margin-left: 0;
 }
 
 .header-actions {

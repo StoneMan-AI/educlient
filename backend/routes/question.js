@@ -43,7 +43,7 @@ router.get('/difficulties', optionalAuth, async (req, res, next) => {
 // 查询试题
 router.get('/search', optionalAuth, async (req, res, next) => {
   try {
-    const { grade_id, subject_id, knowledge_point_id, page = 1, page_size = 100 } = req.query
+    const { grade_id, subject_id, knowledge_point_id, page = 1, page_size = 100, filter_s_grade } = req.query
     
     if (!grade_id || !subject_id || !knowledge_point_id) {
       return res.status(400).json({
@@ -62,11 +62,12 @@ router.get('/search', optionalAuth, async (req, res, next) => {
       grade_id: gradeId,
       subject_id: subjectId,
       knowledge_point_id: knowledgePointId,
-      原始参数: { grade_id, subject_id, knowledge_point_id }
+      filter_s_grade: filter_s_grade,
+      原始参数: { grade_id, subject_id, knowledge_point_id, filter_s_grade }
     })
     
     // 构建基础WHERE条件
-    const baseWhere = `
+    let baseWhere = `
       WHERE q.grade_id = $1 
         AND q.subject_id = $2 
         AND q.knowledge_point_id = $3
@@ -74,6 +75,13 @@ router.get('/search', optionalAuth, async (req, res, next) => {
     `
     
     const baseParams = [gradeId, subjectId, knowledgePointId]
+    
+    // 如果启用了S级典型题型筛选，添加remarks条件
+    if (filter_s_grade === 'true') {
+      // 筛选remarks字段包含"s"或"S"（忽略大小写和空格）
+      // ILIKE是不区分大小写的LIKE，TRIM去除前后空格
+      baseWhere += ` AND TRIM(q.remarks) ILIKE '%s%'`
+    }
     
     // VIP用户：排除已下载的题目（如果是一键生成）
     let excludeCondition = ''
