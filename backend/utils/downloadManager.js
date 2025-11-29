@@ -50,6 +50,8 @@ export async function cleanupExpiredDownloads() {
 
     if (expired.rows.length > 0) {
       const ids = expired.rows.map(row => row.id)
+      
+      // 先删除文件
       for (const row of expired.rows) {
         if (row.question_pdf_path) {
           await removeFileSafe(path.join(DOWNLOAD_ROOT, row.question_pdf_path))
@@ -60,6 +62,17 @@ export async function cleanupExpiredDownloads() {
         const dir = path.join(DOWNLOAD_ROOT, path.dirname(row.question_pdf_path || row.answer_pdf_path || ''))
         await removeDirectoryIfEmpty(dir)
       }
+      
+      // 在删除 download_records 之前，先将 orders 表中引用这些记录的 download_record_id 设置为 NULL
+      // 这样可以避免外键约束错误
+      await client.query(
+        `UPDATE orders 
+         SET download_record_id = NULL 
+         WHERE download_record_id = ANY($1::int[])`,
+        [ids]
+      )
+      
+      // 现在可以安全地删除 download_records
       await client.query('DELETE FROM download_records WHERE id = ANY($1::int[])', [ids])
     }
   } finally {
