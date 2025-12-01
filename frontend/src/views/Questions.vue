@@ -45,9 +45,10 @@
             <el-card v-if="currentQuestion" class="question-card">
               <div class="question-header">
                 <div class="question-info">
+                  <el-tag v-if="currentQuestion.knowledge_point_name">{{ currentQuestion.knowledge_point_name }}</el-tag>
                   <el-tag>第 {{ currentIndex + 1 }} / {{ total }} 题</el-tag>
                   <el-tag type="success">{{ currentQuestion.difficulty_name }}</el-tag>
-                  <el-tag type="info">
+                  <el-tag class="question-type-tag">
                     {{ currentQuestion.question_type_name || '题型未设置' }}
                   </el-tag>
                   <el-tag v-if="questionStore.isDownloaded(currentQuestion.id)" type="warning">已下载</el-tag>
@@ -102,7 +103,7 @@
               >
                 <div class="selected-info">
                   <el-tag type="success" size="small">{{ item.difficulty_name || '未知难度' }}</el-tag>
-                  <el-tag type="info" size="small">{{ item.question_type_name || '题型未设置' }}</el-tag>
+                  <el-tag class="question-type-tag" size="small">{{ item.question_type_name || '题型未设置' }}</el-tag>
                 </div>
                 <el-button type="text" size="small" @click="handleRemoveSelected(item.id)">取消</el-button>
               </div>
@@ -826,6 +827,12 @@ watch(() => userStore.isVip, (val) => {
 .question-info {
   display: flex;
   gap: 10px;
+}
+
+.question-type-tag {
+  background-color: #ffd7a6;
+  border-color: #ffd7a6;
+  color: #8b4513;
 }
 
 .question-actions {
