@@ -58,39 +58,15 @@
           </el-form>
         </el-card>
 
-        <el-card class="featured-kp-card">
+        <el-card v-if="hasVisitHistory && visitedGradeKnowledgePoints.length > 0" class="featured-kp-card">
           <template #header>
             <div class="featured-header">学年知识点预览</div>
           </template>
           <div class="featured-sections">
-            <div class="featured-section">
-              <div class="section-title">小学</div>
+            <div v-for="subjectGroup in visitedGradeKnowledgePoints" :key="subjectGroup.subjectId" class="featured-section">
+              <div class="section-title">{{ subjectGroup.subjectName }}</div>
               <div class="kp-grid">
-                <a v-for="kp in featured.primary" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">初中</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.junior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">高中</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.senior" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">中考</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.zhongkao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
-              </div>
-            </div>
-            <div class="featured-section">
-              <div class="section-title">高考</div>
-              <div class="kp-grid">
-                <a v-for="kp in featured.gaokao" :key="kp.id" class="kp-item" @click="goByFeatured(kp)">{{ kp.name }}</a>
+                <a v-for="kp in subjectGroup.knowledgePoints" :key="kp.id" class="kp-item" @click="goByKnowledgePoint(kp, subjectGroup.subjectId)">{{ kp.name }}</a>
               </div>
             </div>
           </div>
@@ -143,6 +119,11 @@ const featured = ref({
   zhongkao: [],
   gaokao: []
 })
+
+// 访问历史相关
+const hasVisitHistory = ref(false)
+const visitedGradeId = ref(null)
+const visitedGradeKnowledgePoints = ref([]) // [{ subjectId, subjectName, knowledgePoints: [...] }]
 
 const searchForm = ref({
   gradeId: null,
@@ -227,6 +208,75 @@ const goByFeatured = (kp) => {
   })
 }
 
+// 根据访问历史加载知识点预览
+const loadVisitedGradeKnowledgePoints = async () => {
+  try {
+    const historyStr = localStorage.getItem('question_visit_history')
+    if (!historyStr) {
+      hasVisitHistory.value = false
+      return
+    }
+    
+    const history = JSON.parse(historyStr)
+    if (!history.gradeId) {
+      hasVisitHistory.value = false
+      return
+    }
+    
+    visitedGradeId.value = history.gradeId
+    hasVisitHistory.value = true
+    
+    // 获取该年级下的所有学科
+    const subjectsRes = await questionApi.getSubjects(history.gradeId)
+    const subjects = subjectsRes.subjects || []
+    
+    if (subjects.length === 0) {
+      visitedGradeKnowledgePoints.value = []
+      return
+    }
+    
+    // 为每个学科加载知识点
+    const knowledgePointsPromises = subjects.map(async (subject) => {
+      try {
+        const kpRes = await questionApi.getKnowledgePoints(history.gradeId, subject.id)
+        return {
+          subjectId: subject.id,
+          subjectName: subject.name,
+          knowledgePoints: kpRes.knowledge_points || []
+        }
+      } catch (error) {
+        console.error(`加载学科 ${subject.name} 的知识点失败`, error)
+        return {
+          subjectId: subject.id,
+          subjectName: subject.name,
+          knowledgePoints: []
+        }
+      }
+    })
+    
+    const results = await Promise.all(knowledgePointsPromises)
+    // 过滤掉没有知识点的学科
+    visitedGradeKnowledgePoints.value = results.filter(item => item.knowledgePoints.length > 0)
+  } catch (error) {
+    console.error('加载访问历史知识点失败', error)
+    hasVisitHistory.value = false
+    visitedGradeKnowledgePoints.value = []
+  }
+}
+
+// 点击知识点跳转
+const goByKnowledgePoint = (kp, subjectId) => {
+  if (!visitedGradeId.value || !subjectId || !kp.id) return
+  router.push({
+    name: 'Questions',
+    query: {
+      grade_id: visitedGradeId.value,
+      subject_id: subjectId,
+      knowledge_point_id: kp.id
+    }
+  })
+}
+
 const handleSearch = async () => {
   // 直接跳转到试题展示页，由试题页负责加载数据
   // 保存筛选条件（供其他地方使用）
@@ -278,14 +328,18 @@ onMounted(async () => {
     ElMessage.error('获取年级列表失败')
   }
   
-  // 加载五个学段的随机知识点
-  await Promise.all([
-    loadFeaturedByStage('primary'),
-    loadFeaturedByStage('junior'),
-    loadFeaturedByStage('senior'),
-    loadFeaturedByStage('zhongkao'),
-    loadFeaturedByStage('gaokao')
-  ])
+  // 检查是否有访问历史，如果有则加载访问过的年级的知识点预览
+  await loadVisitedGradeKnowledgePoints()
+  
+  // 如果没有访问历史，加载五个学段的随机知识点（保留原有功能，但不再显示）
+  // 注意：这里不再显示这些随机知识点，因为需求是只有访问过试题展示页面才显示知识点预览
+  // await Promise.all([
+  //   loadFeaturedByStage('primary'),
+  //   loadFeaturedByStage('junior'),
+  //   loadFeaturedByStage('senior'),
+  //   loadFeaturedByStage('zhongkao'),
+  //   loadFeaturedByStage('gaokao')
+  // ])
 })
 </script>
 

@@ -284,6 +284,9 @@ const loadQuestions = async () => {
       sort_by: sortBy.value
     }
     
+    // 记录访问历史（每次加载试题时都更新）
+    recordVisitHistory()
+    
     // 如果勾选了S级典型题型筛选，添加筛选参数
     if (filterSGrade.value && userStore.isVip) {
       params.filter_s_grade = 'true'
@@ -692,12 +695,33 @@ const handleKeydown = (event) => {
   }
 }
 
+// 记录用户访问的年级、学科、知识点信息
+const recordVisitHistory = () => {
+  const gradeId = route.query.grade_id
+  const subjectId = route.query.subject_id
+  const knowledgePointId = route.query.knowledge_point_id
+  
+  if (gradeId && subjectId && knowledgePointId) {
+    try {
+      const visitHistory = {
+        gradeId: parseInt(gradeId),
+        subjectId: parseInt(subjectId),
+        knowledgePointId: parseInt(knowledgePointId),
+        timestamp: Date.now()
+      }
+      localStorage.setItem('question_visit_history', JSON.stringify(visitHistory))
+    } catch (error) {
+      console.warn('保存访问历史失败', error)
+    }
+  }
+}
+
 onMounted(() => {
   loadGuestLimitState()
   if (userStore.isLoggedIn) {
     clearGuestLimitState()
   }
-  loadQuestions()
+  loadQuestions() // loadQuestions中已经包含了recordVisitHistory()
   
   // 添加键盘事件监听器
   window.addEventListener('keydown', handleKeydown)

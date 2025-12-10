@@ -67,7 +67,7 @@ router.get('/knowledge-points', async (req, res, next) => {
        FROM knowledge_points kp
        INNER JOIN questions q ON q.knowledge_point_id = kp.id
        WHERE kp.grade_id = $1 AND kp.subject_id = $2 AND kp.is_active = TRUE AND q.status = '已发布'
-       ORDER BY kp.name`,
+       ORDER BY kp.weight DESC NULLS LAST, kp.name`,
       [grade_id, subject_id]
     )
     
