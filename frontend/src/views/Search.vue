@@ -64,7 +64,7 @@
           </template>
           <div class="featured-sections">
             <div v-for="subjectGroup in visitedGradeKnowledgePoints" :key="subjectGroup.subjectId" class="featured-section">
-              <div class="section-title">{{ subjectGroup.subjectName }}</div>
+              <div class="section-title">{{ subjectGroup.gradeName }}{{ subjectGroup.subjectName }}</div>
               <div class="kp-grid">
                 <a v-for="kp in subjectGroup.knowledgePoints" :key="kp.id" class="kp-item" @click="goByKnowledgePoint(kp, subjectGroup.subjectId)">{{ kp.name }}</a>
               </div>
@@ -123,7 +123,8 @@ const featured = ref({
 // 访问历史相关
 const hasVisitHistory = ref(false)
 const visitedGradeId = ref(null)
-const visitedGradeKnowledgePoints = ref([]) // [{ subjectId, subjectName, knowledgePoints: [...] }]
+const visitedGradeName = ref('')
+const visitedGradeKnowledgePoints = ref([]) // [{ subjectId, subjectName, gradeName, knowledgePoints: [...] }]
 
 const searchForm = ref({
   gradeId: null,
@@ -226,9 +227,30 @@ const loadVisitedGradeKnowledgePoints = async () => {
     visitedGradeId.value = history.gradeId
     hasVisitHistory.value = true
     
+    // 获取年级名称
+    const grade = grades.value.find(g => g.id === history.gradeId)
+    visitedGradeName.value = grade ? grade.name : ''
+    
     // 获取该年级下的所有学科
     const subjectsRes = await questionApi.getSubjects(history.gradeId)
-    const subjects = subjectsRes.subjects || []
+    let subjects = subjectsRes.subjects || []
+    
+    // 过滤学科：初中（7-9年级）和高中（10-12年级）只保留数学、物理、化学
+    const gradeId = parseInt(history.gradeId)
+    if (gradeId >= 7 && gradeId <= 9) {
+      // 初中：只保留数学、物理、化学
+      subjects = subjects.filter(subject => {
+        const name = subject.name
+        return name.includes('数学') || name.includes('物理') || name.includes('化学')
+      })
+    } else if (gradeId >= 10 && gradeId <= 12) {
+      // 高中：只保留数学、物理、化学
+      subjects = subjects.filter(subject => {
+        const name = subject.name
+        return name.includes('数学') || name.includes('物理') || name.includes('化学')
+      })
+    }
+    // 小学（1-6年级）不做限制
     
     if (subjects.length === 0) {
       visitedGradeKnowledgePoints.value = []
@@ -242,6 +264,7 @@ const loadVisitedGradeKnowledgePoints = async () => {
         return {
           subjectId: subject.id,
           subjectName: subject.name,
+          gradeName: visitedGradeName.value,
           knowledgePoints: kpRes.knowledge_points || []
         }
       } catch (error) {
@@ -249,6 +272,7 @@ const loadVisitedGradeKnowledgePoints = async () => {
         return {
           subjectId: subject.id,
           subjectName: subject.name,
+          gradeName: visitedGradeName.value,
           knowledgePoints: []
         }
       }
@@ -324,12 +348,13 @@ onMounted(async () => {
   try {
     const res = await questionApi.getGrades()
     grades.value = res.grades || []
+    
+    // 检查是否有访问历史，如果有则加载访问过的年级的知识点预览
+    // 必须在获取年级列表之后调用，以便获取年级名称
+    await loadVisitedGradeKnowledgePoints()
   } catch (error) {
     ElMessage.error('获取年级列表失败')
   }
-  
-  // 检查是否有访问历史，如果有则加载访问过的年级的知识点预览
-  await loadVisitedGradeKnowledgePoints()
   
   // 如果没有访问历史，加载五个学段的随机知识点（保留原有功能，但不再显示）
   // 注意：这里不再显示这些随机知识点，因为需求是只有访问过试题展示页面才显示知识点预览
