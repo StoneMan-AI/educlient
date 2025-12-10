@@ -3,7 +3,7 @@
     <el-container>
       <el-header>
         <div class="header-content">
-          <h1>试题图片组合网站</h1>
+          <h1>轻松考-精准狙击各个知识点</h1>
           <UserActions />
         </div>
       </el-header>
@@ -85,7 +85,7 @@
           
           <!-- 用户好评区域 -->
           <div class="testimonials-section">
-            <h2 class="testimonials-title">用户好评如潮</h2>
+            <h2 class="testimonials-title">大家对轻松考的评价</h2>
             <el-row :gutter="20" class="testimonials-cards">
               <el-col :xs="24" :sm="24" :md="8" v-for="(testimonial, index) in testimonials" :key="index">
                 <div class="testimonial-card">
@@ -285,13 +285,15 @@ onMounted(async () => {
 .testimonials-section {
   margin-top: 80px;
   padding: 60px 20px;
-  background: #2c3e50;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f4ff 100%);
+  border-radius: 12px;
+  border: 1px solid #e0eef7;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.08);
 }
 
 .testimonials-title {
   text-align: center;
-  color: #ffffff;
+  color: #409eff;
   font-size: 32px;
   font-weight: 600;
   margin-bottom: 50px;
@@ -304,13 +306,19 @@ onMounted(async () => {
 
 .testimonial-card {
   background: #ffffff;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 30px;
   height: 100%;
-  border: 1px solid #ff9800;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0eef7;
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.1);
   display: flex;
   flex-direction: column;
+  transition: all 0.3s ease;
+}
+
+.testimonial-card:hover {
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.15);
+  transform: translateY(-2px);
 }
 
 .testimonial-rating {

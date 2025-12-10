@@ -1,7 +1,7 @@
 {
   "name": "educlient",
   "version": "1.0.0",
-  "description": "试题图片组合网站",
+  "description": "轻松考-精准狙击各个知识点",
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd frontend && npm run dev",
