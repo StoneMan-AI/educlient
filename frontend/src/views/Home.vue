@@ -82,6 +82,28 @@
               </el-row>
             </el-col>
           </el-row>
+          
+          <!-- 用户好评区域 -->
+          <div class="testimonials-section">
+            <h2 class="testimonials-title">用户好评如潮</h2>
+            <el-row :gutter="20" class="testimonials-cards">
+              <el-col :xs="24" :sm="24" :md="8" v-for="(testimonial, index) in testimonials" :key="index">
+                <div class="testimonial-card">
+                  <div class="testimonial-rating">
+                    <el-icon v-for="i in 5" :key="i" class="star-icon">
+                      <StarFilled />
+                    </el-icon>
+                  </div>
+                  <p class="testimonial-text">{{ testimonial.text }}</p>
+                  <div class="testimonial-author">{{ testimonial.author }}</div>
+                  <div class="testimonial-verified">
+                    <el-icon class="check-icon"><Check /></el-icon>
+                    <span>已验证购买</span>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
         </div>
       </el-main>
     </el-container>
@@ -93,6 +115,7 @@ import UserActions from '@/components/UserActions.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { StarFilled, Check } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
 import { useQuestionStore } from '@/stores/question'
 
@@ -112,6 +135,25 @@ const searchForm = ref({
 const canSearch = computed(() => {
   return searchForm.value.gradeId && searchForm.value.subjectId && searchForm.value.knowledgePointId
 })
+
+// 用户好评数据
+const testimonials = ref([
+  {
+    text: '我家孩子用了之后，确实对课本的知识点有所突破，希望网站能越做越完善',
+    author: '陈妈妈',
+    rating: 5
+  },
+  {
+    text: '题目都是来自全国省考的试题，VIP价格很便宜，比买练习册划算多了，拥有所有科目的，最主要的是很有针对性，题目也很新',
+    author: '刘老师',
+    rating: 5
+  },
+  {
+    text: '我们家两个孩子都在用，他们说有很多经典题目，可以针对知识点进行专项训练，而且它还分了难度可以选，不像试卷或练习册，为了一道题，做了10道题',
+    author: '赵妈妈',
+    rating: 5
+  }
+])
 
 const handleGradeChange = async () => {
   searchForm.value.subjectId = null
@@ -237,6 +279,94 @@ onMounted(async () => {
 
 .feature-cards p {
   color: #666;
+}
+
+/* 用户好评区域 */
+.testimonials-section {
+  margin-top: 80px;
+  padding: 60px 20px;
+  background: #2c3e50;
+  border-radius: 8px;
+}
+
+.testimonials-title {
+  text-align: center;
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 50px;
+}
+
+.testimonials-cards {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.testimonial-card {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 30px;
+  height: 100%;
+  border: 1px solid #ff9800;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.testimonial-rating {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.star-icon {
+  color: #ffc107;
+  font-size: 20px;
+}
+
+.testimonial-text {
+  color: #333333;
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  flex: 1;
+}
+
+.testimonial-author {
+  font-weight: bold;
+  font-size: 16px;
+  color: #333333;
+  margin-bottom: 12px;
+}
+
+.testimonial-verified {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #999999;
+  font-size: 13px;
+}
+
+.check-icon {
+  font-size: 14px;
+  color: #999999;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .testimonials-section {
+    padding: 40px 15px;
+  }
+  
+  .testimonials-title {
+    font-size: 24px;
+    margin-bottom: 30px;
+  }
+  
+  .testimonial-card {
+    padding: 20px;
+    margin-bottom: 20px;
+  }
 }
 </style>
 
