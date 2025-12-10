@@ -245,6 +245,43 @@ router.get('/search', optionalAuth, async (req, res, next) => {
   }
 })
 
+// 获取已下载的题目（必须在 /:id 路由之前）
+router.get('/downloaded', authenticate, async (req, res, next) => {
+  try {
+    const { knowledge_point_id } = req.query
+    const userId = req.user.id
+    
+    if (!knowledge_point_id) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供知识点ID'
+      })
+    }
+    
+    // 转换为整数，确保类型匹配
+    const knowledgePointId = parseInt(knowledge_point_id)
+    if (isNaN(knowledgePointId)) {
+      return res.status(400).json({
+        success: false,
+        message: '知识点ID格式错误'
+      })
+    }
+    
+    const result = await pool.query(
+      `SELECT question_id FROM user_downloaded_questions 
+       WHERE user_id = $1 AND knowledge_point_id = $2`,
+      [userId, knowledgePointId]
+    )
+    
+    res.json({
+      success: true,
+      question_ids: result.rows.map(row => row.question_id)
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // 获取试题详情
 router.get('/:id', optionalAuth, guestQuestionLimit, async (req, res, next) => {
   try {
@@ -723,44 +760,6 @@ router.post('/download-group', authenticate, async (req, res, next) => {
       download: mapDownloadRecordToResponse(emptyRecord)
     })
   } catch (error) {
-    next(error)
-  }
-})
-
-// 获取已下载的题目
-router.get('/downloaded', authenticate, async (req, res, next) => {
-  try {
-    const { knowledge_point_id } = req.query
-    const userId = req.user.id
-    
-    if (!knowledge_point_id) {
-      return res.status(400).json({
-        success: false,
-        message: '请提供知识点ID'
-      })
-    }
-    
-    // 转换为整数，确保类型匹配
-    const knowledgePointId = parseInt(knowledge_point_id)
-    if (isNaN(knowledgePointId)) {
-      return res.status(400).json({
-        success: false,
-        message: '知识点ID格式错误'
-      })
-    }
-    
-    const result = await pool.query(
-      `SELECT question_id FROM user_downloaded_questions 
-       WHERE user_id = $1 AND knowledge_point_id = $2`,
-      [userId, knowledgePointId]
-    )
-    
-    res.json({
-      success: true,
-      question_ids: result.rows.map(r => r.question_id)
-    })
-  } catch (error) {
-    console.error('获取已下载题目失败:', error)
     next(error)
   }
 })

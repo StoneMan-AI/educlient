@@ -16,11 +16,15 @@ router.get('/', async (req, res, next) => {
     }
     
     const result = await pool.query(
-      `SELECT DISTINCT kp.id, kp.name, kp.description
+      `SELECT kp.id, kp.name, kp.description, kp.weight
        FROM knowledge_points kp
-       INNER JOIN questions q ON q.knowledge_point_id = kp.id
-       WHERE kp.grade_id = $1 AND kp.subject_id = $2 AND kp.is_active = TRUE AND q.status = '已发布'
-       ORDER BY kp.weight DESC NULLS LAST, kp.name`,
+       WHERE kp.id IN (
+         SELECT DISTINCT kp2.id
+         FROM knowledge_points kp2
+         INNER JOIN questions q ON q.knowledge_point_id = kp2.id
+         WHERE kp2.grade_id = $1 AND kp2.subject_id = $2 AND kp2.is_active = TRUE AND q.status = '已发布'
+       )
+       ORDER BY kp.weight DESC NULLS LAST, kp.name ASC`,
       [grade_id, subject_id]
     )
     
