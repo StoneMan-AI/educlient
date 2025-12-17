@@ -122,7 +122,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { videoApi } from '@/api/video'
 
@@ -131,7 +131,7 @@ const loading = ref(false)
 
 const stage = ref('primary') // primary | junior | senior
 const currentPage = ref(1)
-const pageSize = 20
+const pageSize = 18
 const total = ref(0)
 
 const playerVisible = ref(false)
@@ -182,6 +182,8 @@ const setStage = async (value) => {
 const handlePageChange = async (page) => {
   currentPage.value = page
   await loadVideos()
+  await nextTick()
+  window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
 }
 
 const openPlayer = (video) => {
