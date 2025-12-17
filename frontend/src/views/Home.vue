@@ -109,7 +109,7 @@
           <div class="videos-section">
             <div class="videos-header">
               <div>
-                <h2 class="videos-title">视频学习</h2>
+                <h2 class="videos-title">数学思维，清华教授1对1讲解视频</h2>
                 <div class="videos-subtitle">点击封面进入视频列表，按知识点学习更高效</div>
               </div>
               <el-button type="primary" class="videos-more-btn" @click="goToVideos">查看更多</el-button>

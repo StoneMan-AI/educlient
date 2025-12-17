@@ -295,7 +295,7 @@ onMounted(loadVideos)
 .video-crop {
   width: 100%;
   max-width: 520px;
-  aspect-ratio: 6 / 9;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background: #000;
   border-radius: 12px;
