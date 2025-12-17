@@ -111,9 +111,6 @@
           @timeupdate="handleTimeUpdate"
           @seeking="handleSeeking"
         />
-        <!-- 遮罩：用于遮挡上下白边（不影响原生控件/进度条显示） -->
-        <div class="video-mask video-mask-top" />
-        <div class="video-mask video-mask-bottom" />
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -356,27 +353,11 @@ onMounted(loadVideos)
 
 .video-el {
   width: 100%;
-  height: 100%;
+  /* 轻微放大并上移：实现“上下合计约 8%”裁切（约 4% + 4%） */
+  height: 108%;
   object-fit: cover;
+  transform: translateY(-4%);
   display: block;
-}
-
-.video-mask {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 8%;
-  background: #000;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.video-mask-top {
-  top: 0;
-}
-
-.video-mask-bottom {
-  bottom: 0;
 }
 
 .player-dialog :deep(.el-dialog) {
