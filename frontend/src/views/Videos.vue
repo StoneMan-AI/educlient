@@ -17,8 +17,27 @@
         <el-card class="videos-card">
           <template #header>
             <div class="card-header">
-              <span>视频列表</span>
-              <span class="count" v-if="videos.length > 0">共 {{ videos.length }} 个</span>
+              <div class="header-left-row">
+                <span>视频列表</span>
+                <el-button-group class="stage-filters">
+                  <el-button
+                    size="small"
+                    :type="stage === 'primary' ? 'primary' : 'default'"
+                    @click="setStage('primary')"
+                  >小学知识</el-button>
+                  <el-button
+                    size="small"
+                    :type="stage === 'junior' ? 'primary' : 'default'"
+                    @click="setStage('junior')"
+                  >初中知识</el-button>
+                  <el-button
+                    size="small"
+                    :type="stage === 'senior' ? 'primary' : 'default'"
+                    @click="setStage('senior')"
+                  >高中知识</el-button>
+                </el-button-group>
+              </div>
+              <span class="count" v-if="total > 0">共 {{ total }} 个</span>
             </div>
           </template>
 
@@ -53,6 +72,17 @@
             </el-col>
           </el-row>
 
+          <div v-if="total > pageSize" class="pagination-wrap">
+            <el-pagination
+              background
+              layout="prev, pager, next"
+              :current-page="currentPage"
+              :page-size="pageSize"
+              :total="total"
+              @current-change="handlePageChange"
+            />
+          </div>
+
           <el-empty v-if="!loading && videos.length === 0" description="暂无已发布视频" />
         </el-card>
       </el-main>
@@ -85,6 +115,11 @@ import { videoApi } from '@/api/video'
 const videos = ref([])
 const loading = ref(false)
 
+const stage = ref('primary') // primary | junior | senior
+const currentPage = ref(1)
+const pageSize = 20
+const total = ref(0)
+
 const playerVisible = ref(false)
 const currentVideo = ref(null)
 
@@ -108,13 +143,27 @@ const fallbackCover =
 const loadVideos = async () => {
   loading.value = true
   try {
-    const res = await videoApi.getVideos({ limit: 200 })
+    const offset = (currentPage.value - 1) * pageSize
+    const res = await videoApi.getVideos({ stage: stage.value, limit: pageSize, offset })
     videos.value = res.videos || []
+    total.value = res.total || 0
   } catch (e) {
     ElMessage.error('获取视频列表失败')
   } finally {
     loading.value = false
   }
+}
+
+const setStage = async (value) => {
+  if (stage.value === value) return
+  stage.value = value
+  currentPage.value = 1
+  await loadVideos()
+}
+
+const handlePageChange = async (page) => {
+  currentPage.value = page
+  await loadVideos()
 }
 
 const openPlayer = (video) => {
@@ -165,6 +214,16 @@ onMounted(loadVideos)
   align-items: center;
 }
 
+.header-left-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stage-filters :deep(.el-button) {
+  border-radius: 10px;
+}
+
 .count {
   color: #6b7a90;
   font-size: 12px;
@@ -184,10 +243,10 @@ onMounted(loadVideos)
   box-shadow: 0 10px 24px rgba(64, 158, 255, 0.14);
 }
 
-/* 上下各裁切 5%：容器固定高度，内部媒体放大到 110% 并向上平移 5% */
+/* 封面比例：6:9（更接近竖版海报） + 上下各裁切 5% */
 .cover-crop {
   width: 100%;
-  height: 160px;
+  aspect-ratio: 6 / 9;
   overflow: hidden;
   background: #f0f7ff;
 }
@@ -238,6 +297,12 @@ onMounted(loadVideos)
   object-fit: cover;
   transform: translateY(-5%);
   display: block;
+}
+
+.pagination-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 18px 0 6px;
 }
 </style>
 

@@ -4,11 +4,12 @@ import pool from '../config/database.js'
 const router = express.Router()
 
 // 获取学习视频列表（默认仅返回“已发布”）
-// 支持过滤：grade_id / subject_id / knowledge_point_id
+// 支持过滤：stage(小学/初中/高中) / grade_id / subject_id / knowledge_point_id
 // 支持分页：limit / offset
 router.get('/', async (req, res, next) => {
   try {
     const {
+      stage,
       grade_id,
       subject_id,
       knowledge_point_id,
@@ -39,8 +40,36 @@ router.get('/', async (req, res, next) => {
       where.push(`lv.knowledge_point_id = $${params.length}`)
     }
 
+    // 学段筛选：通过 grades.code 过滤（避免依赖自增ID稳定性）
+    // 约定：小学 G1-G6，初中 G7-G9，高中 G10-G12
+    if (stage) {
+      const stageMap = {
+        primary: ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'],
+        junior: ['G7', 'G8', 'G9'],
+        senior: ['G10', 'G11', 'G12']
+      }
+      const codes = stageMap[String(stage)] || null
+      if (codes) {
+        params.push(codes)
+        where.push(`g.code = ANY($${params.length}::text[])`)
+      }
+    }
+
     const safeLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200)
     const safeOffset = Math.max(parseInt(offset) || 0, 0)
+
+    // 先查 total（不带 limit/offset）
+    const whereSqlForCount = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const countResult = await pool.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM learning_videos lv
+      INNER JOIN grades g ON g.id = lv.grade_id
+      ${whereSqlForCount}
+      `,
+      params
+    )
+    const total = countResult.rows?.[0]?.total || 0
 
     params.push(safeLimit)
     const limitPlaceholder = `$${params.length}`
@@ -86,7 +115,8 @@ router.get('/', async (req, res, next) => {
 
     res.json({
       success: true,
-      videos: result.rows
+      videos: result.rows,
+      total
     })
   } catch (error) {
     next(error)
