@@ -4,7 +4,7 @@
       <el-header>
         <div class="header-content">
           <div class="header-left">
-            <h2 class="page-title">视频学习</h2>
+            <h2 class="page-title">数学思维，1对1视频讲解</h2>
             <div class="page-subtitle">按知识点观看讲解视频，精准突破薄弱点</div>
           </div>
           <div class="header-right">
@@ -94,7 +94,7 @@
     <el-dialog
       v-model="playerVisible"
       :title="currentVideo?.title || '视频播放'"
-      width="860px"
+      width="520px"
       class="player-dialog"
       destroy-on-close
     >
@@ -294,8 +294,8 @@ onMounted(loadVideos)
 
 .video-crop {
   width: 100%;
-  max-width: 820px;
-  height: 462px;
+  max-width: 520px;
+  aspect-ratio: 6 / 9;
   overflow: hidden;
   background: #000;
   border-radius: 12px;
@@ -303,10 +303,14 @@ onMounted(loadVideos)
 
 .video-el {
   width: 100%;
-  height: 110%;
+  height: 116%;
   object-fit: cover;
-  transform: translateY(-5%);
+  transform: translateY(-8%);
   display: block;
+}
+
+.player-dialog :deep(.el-dialog) {
+  max-width: 92vw;
 }
 
 .pagination-wrap {

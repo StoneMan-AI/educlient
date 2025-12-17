@@ -54,13 +54,19 @@ const routes = [
     path: '/videos',
     name: 'Videos',
     component: () => import('@/views/Videos.vue'),
-    meta: { title: '视频学习' }
+    meta: { title: '数学思维，1对1视频讲解' }
   }
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    // 浏览器前进/后退：保持原滚动位置
+    if (savedPosition) return savedPosition
+    // 其他跳转：默认回到顶部，避免继承上一个页面的滚动位置
+    return { left: 0, top: 0 }
+  }
 })
 
 router.beforeEach((to, from, next) => {
