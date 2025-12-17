@@ -19,23 +19,26 @@
             <div class="card-header">
               <div class="header-left-row">
                 <span>视频列表</span>
-                <el-button-group class="stage-filters">
+                <div class="stage-filters">
                   <el-button
                     size="small"
-                    :type="stage === 'primary' ? 'primary' : 'default'"
+                    type="primary"
+                    :plain="stage !== 'primary'"
                     @click="setStage('primary')"
                   >小学知识</el-button>
                   <el-button
                     size="small"
-                    :type="stage === 'junior' ? 'primary' : 'default'"
+                    type="primary"
+                    :plain="stage !== 'junior'"
                     @click="setStage('junior')"
                   >初中知识</el-button>
                   <el-button
                     size="small"
-                    :type="stage === 'senior' ? 'primary' : 'default'"
+                    type="primary"
+                    :plain="stage !== 'senior'"
                     @click="setStage('senior')"
                   >高中知识</el-button>
-                </el-button-group>
+                </div>
               </div>
               <span class="count" v-if="total > 0">共 {{ total }} 个</span>
             </div>
@@ -48,7 +51,7 @@
               :xs="24"
               :sm="12"
               :md="8"
-              :lg="6"
+              :lg="4"
               class="video-col"
             >
               <div class="video-item" @click="openPlayer(video)">
@@ -220,8 +223,15 @@ onMounted(loadVideos)
   gap: 12px;
 }
 
+.stage-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .stage-filters :deep(.el-button) {
   border-radius: 10px;
+  font-weight: 600;
 }
 
 .count {
@@ -253,9 +263,9 @@ onMounted(loadVideos)
 
 .cover-img {
   width: 100%;
-  height: 110%;
+  height: 120%;
   object-fit: cover;
-  transform: translateY(-5%);
+  transform: translateY(-10%);
   display: block;
 }
 
