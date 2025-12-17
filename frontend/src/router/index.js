@@ -49,6 +49,12 @@ const routes = [
     name: 'Downloads',
     component: () => import('@/views/DownloadManager.vue'),
     meta: { title: '下载管理', requiresAuth: true }
+  },
+  {
+    path: '/videos',
+    name: 'Videos',
+    component: () => import('@/views/Videos.vue'),
+    meta: { title: '视频学习' }
   }
 ]
 

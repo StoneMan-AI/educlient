@@ -104,6 +104,40 @@
               </el-col>
             </el-row>
           </div>
+
+          <!-- 视频学习入口（好评下方） -->
+          <div class="videos-section">
+            <div class="videos-header">
+              <div>
+                <h2 class="videos-title">视频学习</h2>
+                <div class="videos-subtitle">点击封面进入视频列表，按知识点学习更高效</div>
+              </div>
+              <el-button type="primary" class="videos-more-btn" @click="goToVideos">查看更多</el-button>
+            </div>
+
+            <el-row :gutter="16" class="videos-grid">
+              <el-col
+                v-for="(item, index) in featuredVideosSlots"
+                :key="index"
+                :xs="24"
+                :sm="12"
+                :md="8"
+                :lg="4"
+              >
+                <div class="video-cover-item" @click="goToVideos">
+                  <div class="cover-crop">
+                    <img
+                      class="cover-img"
+                      :src="item?.cover_image_url || fallbackCover"
+                      :alt="item?.title || '视频封面'"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div class="cover-title">{{ item?.title || '学习视频' }}</div>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
         </div>
       </el-main>
     </el-container>
@@ -117,6 +151,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { StarFilled, Check } from '@element-plus/icons-vue'
 import { questionApi } from '@/api/question'
+import { videoApi } from '@/api/video'
 import { useQuestionStore } from '@/stores/question'
 
 const router = useRouter()
@@ -154,6 +189,48 @@ const testimonials = ref([
     rating: 5
   }
 ])
+
+// 首页视频封面（展示 5 张）
+const featuredVideos = ref([])
+const fallbackCover =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f0f7ff"/>
+          <stop offset="100%" stop-color="#e8f4ff"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#g)"/>
+      <circle cx="400" cy="225" r="64" fill="#409eff" opacity="0.15"/>
+      <polygon points="380,190 380,260 445,225" fill="#409eff"/>
+      <text x="50%" y="85%" text-anchor="middle" font-size="20" fill="#409eff" font-family="Arial">视频学习</text>
+    </svg>`
+  )
+
+const featuredVideosSlots = computed(() => {
+  // 始终展示 5 张（没有数据时用占位）
+  const slots = []
+  for (let i = 0; i < 5; i += 1) {
+    slots.push(featuredVideos.value[i] || null)
+  }
+  return slots
+})
+
+const goToVideos = () => {
+  router.push({ name: 'Videos' })
+}
+
+const loadFeaturedVideos = async () => {
+  try {
+    const res = await videoApi.getVideos({ limit: 5 })
+    featuredVideos.value = res.videos || []
+  } catch (e) {
+    // 首页不强提示，避免打扰用户
+    featuredVideos.value = []
+  }
+}
 
 const handleGradeChange = async () => {
   searchForm.value.subjectId = null
@@ -217,6 +294,7 @@ onMounted(async () => {
   try {
     const res = await questionApi.getGrades()
     grades.value = res.grades || []
+    await loadFeaturedVideos()
   } catch (error) {
     ElMessage.error('获取年级列表失败')
   }
@@ -360,6 +438,81 @@ onMounted(async () => {
   color: #999999;
 }
 
+/* 视频学习入口 */
+.videos-section {
+  margin-top: 28px;
+  padding: 26px 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e7eff8;
+  box-shadow: 0 4px 12px rgba(31, 45, 61, 0.04);
+}
+
+.videos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.videos-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2d3d;
+}
+
+.videos-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #6b7a90;
+}
+
+.videos-more-btn {
+  border-radius: 10px;
+}
+
+.video-cover-item {
+  cursor: pointer;
+  border: 1px solid #e7eff8;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: #fff;
+}
+
+.video-cover-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(64, 158, 255, 0.12);
+}
+
+/* 上下各裁切 5% */
+.cover-crop {
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+  background: #f0f7ff;
+}
+
+.cover-img {
+  width: 100%;
+  height: 110%;
+  object-fit: cover;
+  transform: translateY(-5%);
+  display: block;
+}
+
+.cover-title {
+  padding: 10px 12px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2d3d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .testimonials-section {
@@ -374,6 +527,10 @@ onMounted(async () => {
   .testimonial-card {
     padding: 20px;
     margin-bottom: 20px;
+  }
+
+  .videos-section {
+    padding: 20px 15px;
   }
 }
 </style>
