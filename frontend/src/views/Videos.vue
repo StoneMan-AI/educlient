@@ -99,7 +99,16 @@
       destroy-on-close
     >
       <div v-if="currentVideo" class="video-crop">
-        <video class="video-el" :src="currentVideo.video_url" controls playsinline />
+        <video
+          ref="videoRef"
+          class="video-el"
+          :src="currentVideo.video_url"
+          controls
+          playsinline
+          @loadedmetadata="handleLoadedMeta"
+          @timeupdate="handleTimeUpdate"
+          @seeking="handleSeeking"
+        />
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -125,6 +134,10 @@ const total = ref(0)
 
 const playerVisible = ref(false)
 const currentVideo = ref(null)
+const videoRef = ref(null)
+
+// 控制：最后 N 秒不允许播放（截停）
+const CUT_OFF_LAST_SECONDS = 4
 
 const fallbackCover =
   'data:image/svg+xml;utf8,' +
@@ -176,6 +189,40 @@ const openPlayer = (video) => {
   }
   currentVideo.value = video
   playerVisible.value = true
+}
+
+const clampToAllowedRange = () => {
+  const el = videoRef.value
+  if (!el) return
+  const d = el.duration
+  if (!Number.isFinite(d) || d <= 0) return
+  const stopAt = Math.max(0, d - CUT_OFF_LAST_SECONDS)
+  if (el.currentTime > stopAt) {
+    el.currentTime = stopAt
+  }
+}
+
+const handleLoadedMeta = () => {
+  // 元数据加载后，确保初始状态不会处于禁播区间
+  clampToAllowedRange()
+}
+
+const handleSeeking = () => {
+  // 用户拖动进度条进入最后 N 秒时，直接拉回
+  clampToAllowedRange()
+}
+
+const handleTimeUpdate = () => {
+  const el = videoRef.value
+  if (!el) return
+  const d = el.duration
+  if (!Number.isFinite(d) || d <= 0) return
+  const stopAt = Math.max(0, d - CUT_OFF_LAST_SECONDS)
+  if (el.currentTime >= stopAt) {
+    // 截停：到达禁播区间立即暂停并锁回边界
+    el.pause()
+    el.currentTime = stopAt
+  }
 }
 
 onMounted(loadVideos)
