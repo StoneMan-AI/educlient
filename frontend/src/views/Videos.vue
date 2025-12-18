@@ -202,6 +202,10 @@ const openPlayer = (video) => {
   currentVideo.value = video
   showReplayButton.value = false
   playerVisible.value = true
+  // 重置视频状态，确保下次打开时重新加载
+  if (videoRef.value) {
+    videoRef.value.load()
+  }
 }
 
 // 弹框打开后，延迟0.5秒自动播放
@@ -249,7 +253,26 @@ const handleTimeUpdate = () => {
     // 截停：到达禁播区间立即暂停并锁回边界
     el.pause()
     el.currentTime = stopAt
+    // 显示重播按钮
+    showReplayButton.value = true
+  } else {
+    // 不在截停区间时，隐藏重播按钮
+    showReplayButton.value = false
   }
+}
+
+const handleReplay = () => {
+  const el = videoRef.value
+  if (!el) return
+  const d = el.duration
+  if (!Number.isFinite(d) || d <= 0) return
+  const stopAt = Math.max(0, d - CUT_OFF_LAST_SECONDS)
+  // 重播：从开始播放
+  el.currentTime = 0
+  el.play().catch((err) => {
+    console.warn('重播失败:', err)
+  })
+  showReplayButton.value = false
 }
 
 onMounted(loadVideos)
@@ -369,7 +392,7 @@ onMounted(loadVideos)
 .video-crop {
   width: 100%;
   max-width: 520px;
-  aspect-ratio: 1 / 1.3;
+  aspect-ratio: 1 / 1.4;
   overflow: hidden;
   background: #000;
   border-radius: 12px;
@@ -393,6 +416,26 @@ onMounted(loadVideos)
   display: flex;
   justify-content: center;
   padding: 18px 0 6px;
+}
+
+.replay-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  border-radius: 12px;
+}
+
+.replay-overlay .el-button {
+  width: 64px;
+  height: 64px;
+  font-size: 24px;
 }
 </style>
 
