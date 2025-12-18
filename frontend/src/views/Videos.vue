@@ -97,6 +97,7 @@
       width="520px"
       class="player-dialog"
       destroy-on-close
+      @opened="handleDialogOpened"
     >
       <div v-if="currentVideo" class="video-crop">
         <video
@@ -111,6 +112,11 @@
           @timeupdate="handleTimeUpdate"
           @seeking="handleSeeking"
         />
+        <div v-if="showReplayButton" class="replay-overlay">
+          <el-button type="primary" size="large" @click="handleReplay" circle>
+            <el-icon><VideoPlay /></el-icon>
+          </el-button>
+        </div>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -122,8 +128,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { VideoPlay } from '@element-plus/icons-vue'
 import { videoApi } from '@/api/video'
 
 const videos = ref([])
@@ -137,6 +144,7 @@ const total = ref(0)
 const playerVisible = ref(false)
 const currentVideo = ref(null)
 const videoRef = ref(null)
+const showReplayButton = ref(false)
 
 // 控制：最后 N 秒不允许播放（截停）
 const CUT_OFF_LAST_SECONDS = 3
@@ -192,7 +200,22 @@ const openPlayer = (video) => {
     return
   }
   currentVideo.value = video
+  showReplayButton.value = false
   playerVisible.value = true
+}
+
+// 弹框打开后，延迟0.5秒自动播放
+const handleDialogOpened = async () => {
+  await nextTick()
+  if (videoRef.value) {
+    setTimeout(() => {
+      if (videoRef.value) {
+        videoRef.value.play().catch((err) => {
+          console.warn('自动播放失败:', err)
+        })
+      }
+    }, 500)
+  }
 }
 
 const clampToAllowedRange = () => {
