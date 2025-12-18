@@ -139,7 +139,7 @@ const currentVideo = ref(null)
 const videoRef = ref(null)
 
 // 控制：最后 N 秒不允许播放（截停）
-const CUT_OFF_LAST_SECONDS = 4
+const CUT_OFF_LAST_SECONDS = 3
 
 const fallbackCover =
   'data:image/svg+xml;utf8,' +
@@ -346,7 +346,7 @@ onMounted(loadVideos)
 .video-crop {
   width: 100%;
   max-width: 520px;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1 / 1.3;
   overflow: hidden;
   background: #000;
   border-radius: 12px;
