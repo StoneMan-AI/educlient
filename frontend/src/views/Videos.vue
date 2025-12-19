@@ -377,7 +377,7 @@ onMounted(loadVideos)
   background: #000;
   border-radius: 12px;
   /* 视频内容区域使用 1:1.3 比例 */
-  aspect-ratio: 1 / 1.3;
+  aspect-ratio: 1 / 1.35;
 }
 
 .video-el {
@@ -386,13 +386,13 @@ onMounted(loadVideos)
   object-fit: cover;
   display: block;
   /* 视频内容区域：放大并上移，实现上下各5%裁切 */
-  /* 视频高度放大到 125%（1 / 0.90），然后上移5% */
-  height: 125%;
+  /* 视频高度放大到 116.11%（1 / 0.90），然后上移5% */
+  height: 116.11%;
   transform: translateY(-5%);
   transform-origin: center top;
   /* 确保控件向上移动 - 通过调整视频元素的位置 */
   position: relative;
-  top: -20px; /* 向上移动视频元素，让控件也向上移动 */
+  top: -10px; /* 向上移动视频元素，让控件也向上移动 */
 }
 
 .replay-overlay {
