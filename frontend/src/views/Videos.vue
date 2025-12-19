@@ -94,24 +94,29 @@
     <el-dialog
       v-model="playerVisible"
       :title="currentVideo?.title || '视频播放'"
-      width="520px"
+      width="90%"
       class="player-dialog"
       destroy-on-close
       @opened="handleDialogOpened"
     >
-      <div v-if="currentVideo" class="video-crop">
-        <video
-          ref="videoRef"
-          class="video-el"
-          :src="currentVideo.video_url"
-          controls
-          playsinline
-          controlsList="nodownload nofullscreen noremoteplayback"
-          disablePictureInPicture
-          @loadedmetadata="handleLoadedMeta"
-          @timeupdate="handleTimeUpdate"
-          @seeking="handleSeeking"
-        />
+      <div v-if="currentVideo" class="video-wrapper">
+        <div class="video-crop">
+          <video
+            ref="videoRef"
+            class="video-el"
+            :src="currentVideo.video_url"
+            controls
+            playsinline
+            controlsList="nodownload nofullscreen noremoteplayback"
+            disablePictureInPicture
+            @loadedmetadata="handleLoadedMeta"
+            @timeupdate="handleTimeUpdate"
+            @seeking="handleSeeking"
+          />
+          <!-- 上下遮罩层，遮挡各 8% 的区域 -->
+          <div class="video-mask-top"></div>
+          <div class="video-mask-bottom"></div>
+        </div>
         <div v-if="showReplayButton" class="replay-overlay">
           <el-button type="primary" size="large" @click="handleReplay" circle>
             <el-icon><VideoPlay /></el-icon>
@@ -389,23 +394,57 @@ onMounted(loadVideos)
   flex-wrap: wrap;
 }
 
-.video-crop {
+.video-wrapper {
   width: 100%;
-  max-width: 520px;
-  aspect-ratio: 1 / 1.4;
-  overflow: hidden;
+  max-width: min(90vw, 800px);
+  margin: 0 auto;
+  position: relative;
   background: #000;
   border-radius: 12px;
+  overflow: visible;
+}
+
+.video-crop {
+  width: 100%;
   position: relative;
+  overflow: visible;
+  background: #000;
+  /* 视频内容区域使用 1:1.4 比例，控制栏自然显示在下方 */
+  aspect-ratio: 1 / 1.4;
 }
 
 .video-el {
   width: 100%;
-  /* 轻微放大并上移：实现“上下合计约 8%”裁切（约 4% + 4%） */
-  height: 108%;
+  height: 100%;
   object-fit: cover;
-  transform: translateY(-4%);
   display: block;
+  /* 视频内容区域：放大并上移以实现上下各 8% 裁切 */
+  transform: scale(1.19) translateY(-8%); /* 1 / (1 - 0.08 - 0.08) ≈ 1.19 */
+  transform-origin: center center;
+}
+
+/* 上下遮罩层，只遮挡视频内容区域，不遮挡控制栏 */
+.video-mask-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8%;
+  background: #000;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.video-mask-bottom {
+  position: absolute;
+  /* 遮罩在控制栏上方，控制栏高度约 50px */
+  bottom: 50px;
+  left: 0;
+  right: 0;
+  height: 8%;
+  background: #000;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .player-dialog :deep(.el-dialog) {
