@@ -382,12 +382,12 @@ onMounted(loadVideos)
 
 .video-el {
   width: 100%;
-  /* 视频高度放大到 116.67%（1 / 0.84），然后上移8%，实现上下各8%裁切 */
-  height: 116.67%;
+  /* 视频高度放大到 116.28%（1 / 0.86），然后上移7%，实现上下各7%裁切 */
+  height: 116.28%;
   object-fit: cover;
   display: block;
-  /* 上移8%，使视频内容居中显示，上下各8%被裁切 */
-  transform: translateY(-8%);
+  /* 上移7%，使视频内容居中显示，上下各7%被裁切 */
+  transform: translateY(-7%);
   transform-origin: center top;
 }
 
