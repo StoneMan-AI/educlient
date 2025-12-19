@@ -392,7 +392,7 @@ onMounted(loadVideos)
   transform-origin: center top;
   /* 确保控件向上移动 - 通过调整视频元素的位置 */
   position: relative;
-  top: -10px; /* 向上移动视频元素，让控件也向上移动 */
+  top: -50px; /* 向上移动视频元素，让控件也向上移动 */
 }
 
 .replay-overlay {
