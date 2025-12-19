@@ -111,9 +111,6 @@
           @timeupdate="handleTimeUpdate"
           @seeking="handleSeeking"
         />
-        <!-- 上下遮罩层，只遮挡视频内容区域，不遮挡控件 -->
-        <div class="video-mask-top"></div>
-        <div class="video-mask-bottom"></div>
         <div v-if="showReplayButton" class="replay-overlay">
           <el-button type="primary" size="large" @click="handleReplay" circle>
             <el-icon><VideoPlay /></el-icon>
@@ -379,7 +376,7 @@ onMounted(loadVideos)
   overflow: hidden;
   background: #000;
   border-radius: 12px;
-  /* 视频内容区域使用 1:1.3 比例，控件自然显示在下方 */
+  /* 视频内容区域使用 1:1.3 比例 */
   aspect-ratio: 1 / 1.3;
 }
 
@@ -393,30 +390,9 @@ onMounted(loadVideos)
   height: 111.11%;
   transform: translateY(-5%);
   transform-origin: center top;
-}
-
-/* 上下遮罩层，只遮挡视频内容区域，不遮挡控件 */
-.video-mask-top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5%;
-  background: #000;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.video-mask-bottom {
-  position: absolute;
-  /* 遮罩在控件上方，控件高度约 50px */
-  bottom: 50px;
-  left: 0;
-  right: 0;
-  height: 5%;
-  background: #000;
-  z-index: 2;
-  pointer-events: none;
+  /* 确保控件向上移动 - 通过调整视频元素的位置 */
+  position: relative;
+  top: -10px; /* 向上移动视频元素，让控件也向上移动 */
 }
 
 .replay-overlay {
