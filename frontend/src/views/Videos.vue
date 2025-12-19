@@ -94,12 +94,11 @@
     <el-dialog
       v-model="playerVisible"
       :title="currentVideo?.title || '视频播放'"
-      width="auto"
+      width="520px"
       class="player-dialog"
       destroy-on-close
-      @opened="handleDialogOpened"
     >
-      <div v-if="currentVideo" class="video-wrapper">
+      <div v-if="currentVideo" class="video-crop">
         <video
           ref="videoRef"
           class="video-el"
@@ -112,11 +111,6 @@
           @timeupdate="handleTimeUpdate"
           @seeking="handleSeeking"
         />
-        <div v-if="showReplayButton" class="replay-overlay">
-          <el-button type="primary" size="large" @click="handleReplay" circle>
-            <el-icon><VideoPlay /></el-icon>
-          </el-button>
-        </div>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -128,9 +122,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { VideoPlay } from '@element-plus/icons-vue'
 import { videoApi } from '@/api/video'
 
 const videos = ref([])
@@ -144,7 +137,6 @@ const total = ref(0)
 const playerVisible = ref(false)
 const currentVideo = ref(null)
 const videoRef = ref(null)
-const showReplayButton = ref(false)
 
 // 控制：最后 N 秒不允许播放（截停）
 const CUT_OFF_LAST_SECONDS = 3
@@ -200,26 +192,7 @@ const openPlayer = (video) => {
     return
   }
   currentVideo.value = video
-  showReplayButton.value = false
   playerVisible.value = true
-  // 重置视频状态，确保下次打开时重新加载
-  if (videoRef.value) {
-    videoRef.value.load()
-  }
-}
-
-// 弹框打开后，延迟0.5秒自动播放
-const handleDialogOpened = async () => {
-  await nextTick()
-  if (videoRef.value) {
-    setTimeout(() => {
-      if (videoRef.value) {
-        videoRef.value.play().catch((err) => {
-          console.warn('自动播放失败:', err)
-        })
-      }
-    }, 500)
-  }
 }
 
 const clampToAllowedRange = () => {
@@ -253,26 +226,7 @@ const handleTimeUpdate = () => {
     // 截停：到达禁播区间立即暂停并锁回边界
     el.pause()
     el.currentTime = stopAt
-    // 显示重播按钮
-    showReplayButton.value = true
-  } else {
-    // 不在截停区间时，隐藏重播按钮
-    showReplayButton.value = false
   }
-}
-
-const handleReplay = () => {
-  const el = videoRef.value
-  if (!el) return
-  const d = el.duration
-  if (!Number.isFinite(d) || d <= 0) return
-  const stopAt = Math.max(0, d - CUT_OFF_LAST_SECONDS)
-  // 重播：从开始播放
-  el.currentTime = 0
-  el.play().catch((err) => {
-    console.warn('重播失败:', err)
-  })
-  showReplayButton.value = false
 }
 
 onMounted(loadVideos)
@@ -389,61 +343,33 @@ onMounted(loadVideos)
   flex-wrap: wrap;
 }
 
-.video-wrapper {
-  position: relative;
+.video-crop {
+  width: 100%;
+  max-width: 520px;
+  aspect-ratio: 1 / 1.3;
+  overflow: hidden;
   background: #000;
   border-radius: 12px;
-  overflow: hidden;
-  /* 视频播放器最大不超过屏幕的2/3，最小保持视频原本大小 */
-  max-width: 66.67vw;
-  max-height: 66.67vh;
-  display: inline-block;
+  position: relative;
 }
 
 .video-el {
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  /* 轻微放大并上移：实现“上下合计约 8%”裁切（约 4% + 4%） */
+  height: 108%;
+  object-fit: cover;
+  transform: translateY(-4%);
   display: block;
-  /* 保持视频原始宽高比 */
-  object-fit: contain;
 }
 
 .player-dialog :deep(.el-dialog) {
-  width: auto !important;
-  max-width: 66.67vw;
-}
-
-.player-dialog :deep(.el-dialog__body) {
-  padding: 20px;
-  text-align: center;
+  max-width: 92vw;
 }
 
 .pagination-wrap {
   display: flex;
   justify-content: center;
   padding: 18px 0 6px;
-}
-
-.replay-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 10;
-  border-radius: 12px;
-}
-
-.replay-overlay .el-button {
-  width: 64px;
-  height: 64px;
-  font-size: 24px;
 }
 </style>
 
