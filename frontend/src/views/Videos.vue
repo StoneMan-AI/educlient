@@ -382,12 +382,13 @@ onMounted(loadVideos)
 
 .video-el {
   width: 100%;
-  height: 100%;
+  /* 视频高度放大到 116.67%（1 / 0.84），然后上移8%，实现上下各8%裁切 */
+  height: 116.67%;
   object-fit: cover;
   display: block;
-  /* 轻微放大并上移：实现"上下合计约 8%"裁切（约 4% + 4%） */
-  transform: scale(1.08) translateY(-4%);
-  transform-origin: center center;
+  /* 上移8%，使视频内容居中显示，上下各8%被裁切 */
+  transform: translateY(-8%);
+  transform-origin: center top;
 }
 
 .replay-overlay {
