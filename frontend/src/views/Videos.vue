@@ -401,13 +401,13 @@ onMounted(loadVideos)
   position: relative;
   background: #000;
   border-radius: 12px;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .video-crop {
   width: 100%;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   background: #000;
   /* 视频内容区域使用 1:1.4 比例，控制栏自然显示在下方 */
   aspect-ratio: 1 / 1.4;
@@ -418,9 +418,8 @@ onMounted(loadVideos)
   height: 100%;
   object-fit: cover;
   display: block;
-  /* 视频内容区域：放大并上移以实现上下各 8% 裁切 */
-  transform: scale(1.19) translateY(-8%); /* 1 / (1 - 0.08 - 0.08) ≈ 1.19 */
-  transform-origin: center center;
+  /* 视频正常显示，控制栏自然在底部 */
+  /* 上下各 8% 的裁切通过遮罩层实现 */
 }
 
 /* 上下遮罩层，只遮挡视频内容区域，不遮挡控制栏 */
