@@ -97,6 +97,7 @@
       width="520px"
       class="player-dialog"
       destroy-on-close
+      @opened="handleDialogOpened"
     >
       <div v-if="currentVideo" class="video-crop">
         <video
@@ -201,6 +202,21 @@ const openPlayer = (video) => {
   currentVideo.value = video
   showReplayButton.value = false
   playerVisible.value = true
+}
+
+// 弹框打开后，延迟0.5秒自动播放
+const handleDialogOpened = async () => {
+  await nextTick()
+  if (videoRef.value) {
+    setTimeout(() => {
+      if (videoRef.value) {
+        videoRef.value.play().catch((err) => {
+          console.warn('自动播放失败:', err)
+          // 某些浏览器可能阻止自动播放，这是正常行为
+        })
+      }
+    }, 500)
+  }
 }
 
 const clampToAllowedRange = () => {
