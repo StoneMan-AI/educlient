@@ -111,6 +111,11 @@
           @timeupdate="handleTimeUpdate"
           @seeking="handleSeeking"
         />
+        <div v-if="showReplayButton" class="replay-overlay">
+          <el-button type="primary" size="large" @click="handleReplay" circle>
+            <el-icon><VideoPlay /></el-icon>
+          </el-button>
+        </div>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -124,6 +129,7 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
+import { VideoPlay } from '@element-plus/icons-vue'
 import { videoApi } from '@/api/video'
 
 const videos = ref([])
@@ -137,6 +143,7 @@ const total = ref(0)
 const playerVisible = ref(false)
 const currentVideo = ref(null)
 const videoRef = ref(null)
+const showReplayButton = ref(false)
 
 // 控制：最后 N 秒不允许播放（截停）
 const CUT_OFF_LAST_SECONDS = 3
@@ -192,6 +199,7 @@ const openPlayer = (video) => {
     return
   }
   currentVideo.value = video
+  showReplayButton.value = false
   playerVisible.value = true
 }
 
@@ -226,7 +234,25 @@ const handleTimeUpdate = () => {
     // 截停：到达禁播区间立即暂停并锁回边界
     el.pause()
     el.currentTime = stopAt
+    // 显示重播按钮
+    showReplayButton.value = true
+  } else {
+    // 不在截停区间时，隐藏重播按钮
+    showReplayButton.value = false
   }
+}
+
+const handleReplay = () => {
+  const el = videoRef.value
+  if (!el) return
+  const d = el.duration
+  if (!Number.isFinite(d) || d <= 0) return
+  // 重播：从开始播放
+  el.currentTime = 0
+  el.play().catch((err) => {
+    console.warn('重播失败:', err)
+  })
+  showReplayButton.value = false
 }
 
 onMounted(loadVideos)
@@ -346,20 +372,42 @@ onMounted(loadVideos)
 .video-crop {
   width: 100%;
   max-width: 520px;
-  aspect-ratio: 1 / 1.3;
+  position: relative;
   overflow: hidden;
   background: #000;
   border-radius: 12px;
-  position: relative;
+  /* 视频内容区域使用 1:1.3 比例 */
+  aspect-ratio: 1 / 1.3;
 }
 
 .video-el {
   width: 100%;
-  /* 轻微放大并上移：实现“上下合计约 8%”裁切（约 4% + 4%） */
-  height: 108%;
+  height: 100%;
   object-fit: cover;
-  transform: translateY(-4%);
   display: block;
+  /* 轻微放大并上移：实现"上下合计约 8%"裁切（约 4% + 4%） */
+  transform: scale(1.08) translateY(-4%);
+  transform-origin: center center;
+}
+
+.replay-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10;
+  border-radius: 12px;
+}
+
+.replay-overlay .el-button {
+  width: 64px;
+  height: 64px;
+  font-size: 24px;
 }
 
 .player-dialog :deep(.el-dialog) {
