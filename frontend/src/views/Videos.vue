@@ -377,7 +377,7 @@ onMounted(loadVideos)
   background: #000;
   border-radius: 12px;
   /* 视频内容区域使用 1:1.3 比例 */
-  aspect-ratio: 1 / 1.35;
+  aspect-ratio: 1 / 1.3;
 }
 
 .video-el {
@@ -386,8 +386,8 @@ onMounted(loadVideos)
   object-fit: cover;
   display: block;
   /* 视频内容区域：放大并上移，实现上下各5%裁切 */
-  /* 视频高度放大到 116.11%（1 / 0.90），然后上移5% */
-  height: 116.11%;
+  /* 视频高度放大到 111.11%（1 / 0.90），然后上移5% */
+  height: 111.11%;
   transform: translateY(-5%);
   transform-origin: center top;
   /* 确保控件向上移动 - 通过调整视频元素的位置 */
